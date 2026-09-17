@@ -4,8 +4,6 @@ build/
 .cache/
 playwright-report/
 test-results/
-src/lib/vendor/engine.js
-static/licenses/triangle.txt
 .env
 .env.*
 !.env.example

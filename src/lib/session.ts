@@ -1,13 +1,14 @@
 import { Engine } from './vendor/engine.js';
 import { validateConfig, type Config } from './config.ts';
-import type { ClearEvent, EnginePort, KeyFrame, Mino } from './port.ts';
+import type { ClearEvent, EnginePort, KeyFrame } from './port.ts';
 import { AttackRules, Measurement, Random } from './rules.ts';
 import { AttackSource, Receiver } from './garbage.ts';
 export type Status = 'ready' | 'running' | 'paused' | 'completed' | 'topout' | 'stopped';
 export type IncomingEvent = { frame: number; amount: number; source: number; assisted: boolean };
-export type ReplaySource = { keys: KeyFrame[]; attacks: IncomingEvent[]; endFrame: number };
+export type ReplaySource = { keys: KeyFrame[]; attacks: IncomingEvent[]; endFrame: number; ticks: number };
 export class Session {
   engine: EnginePort; config: Config; status: Status = 'ready';
+  ticks = 0;
   rules = new AttackRules(); measure = new Measurement(); receiver: Receiver; source: AttackSource;
   events: KeyFrame[] = []; incoming: IncomingEvent[] = [];
   inputs = 0; holds = 0; lines = 0; clearedGarbage = 0; sent = 0; spins = 0; allClears = 0;
@@ -50,6 +51,7 @@ export class Session {
   stop(): void { if (['ready', 'running', 'paused'].includes(this.status)) this.status = 'stopped'; }
   tick(input: KeyFrame[] = []): void {
     if (this.status !== 'running') return;
+    if (this.playback && this.ticks >= this.playback.ticks) { this.stop(); return; }
     const frame = this.frame;
     if (frame > 216000 || this.events.length > 500000 || this.incoming.length > 100000) { this.stop(); return; }
     let keys = input;
@@ -75,8 +77,9 @@ export class Session {
       if (event.type === 'keydown') { this.inputs++; if (event.data.key === 'hold' && !this.engine.holdLocked) this.holds++; }
     }
     this.engine.tick(keys);
+    this.ticks++;
     if (this.status === 'running') this.receiver.advance(this.frame);
-    if (this.playback && this.frame >= this.playback.endFrame && this.status === 'running') this.stop();
+    if (this.playback && this.ticks >= this.playback.ticks && this.status === 'running') this.stop();
   }
   private finishClear(e: ClearEvent): unknown {
     const frame = this.frame + this.engine.subframe;
@@ -119,10 +122,10 @@ export class Session {
   exportReplay() {
     const c = this.config, s = this.summary();
     return { version: 1, id: null, gamemode: 'zenith', ts: new Date().toISOString(), users: [{ id: null, username: 'SPILINK', avatar_revision: 0, banner_revision: 0, flags: 0, country: null }],
-      replay: { frames: this.frame, events: [{ frame: 0, type: 'start', data: {} }, ...this.events, { frame: this.frame, type: 'end', data: { reason: 'replayend' } }],
+      replay: { frames: this.frame, events: [{ frame: 0, type: 'start', data: {} }, ...this.events, { frame: this.frame, type: 'end', data: { reason: null } }],
         options: { version: 19, seed: c.seed, seed_random: false, boardwidth: 10, boardheight: 20, bagtype: '7-bag', kickset: 'SRS+', spinbonuses: 'all-mini+', combotable: 'multiplier', hasgarbage: true, garbageblocking: 'combo blocking', g: c.gravity, gincrease: c.gravityIncrease ? c.gravityRate : 0, b2bcharging: true, b2bcharge_at: c.chargeAt, b2bcharge_base: c.chargeBase, garbagespecialbonus: c.specialBonus, handling: { arr: c.arr, das: c.das, dcd: c.dcd, sdf: c.sdf, safelock: c.safelock, cancel: c.cancel, may20g: c.may20g, irs: c.irs, ihs: c.ihs } },
         results: { stats: { piecesplaced: s.pieces, lines: s.lines, inputs: s.inputs, holds: s.holds, garbage: { attack: s.attack, sent: s.sent, received: s.received, cleared: this.clearedGarbage } }, aggregatestats: { apm: s.apm, pps: s.pps } } },
-      spilink: { version: 1, profile: 'preview-1', settings: structuredClone(c), attacks: structuredClone(this.incoming), first400: structuredClone(this.measure.checkpoint), status: this.status, summary: s, officialPlayback: false } };
+      spilink: { version: 1, profile: 'preview-1', ticks: this.ticks, settings: structuredClone(c), attacks: structuredClone(this.incoming), first400: structuredClone(this.measure.checkpoint), status: this.status, summary: s, officialPlayback: false } };
   }
-  replaySource(): ReplaySource { return { keys: structuredClone(this.events), attacks: structuredClone(this.incoming), endFrame: this.frame }; }
+  replaySource(): ReplaySource { return { keys: structuredClone(this.events), attacks: structuredClone(this.incoming), endFrame: this.frame, ticks: this.ticks }; }
 }
