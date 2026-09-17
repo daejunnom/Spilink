@@ -1,0 +1,26 @@
+name: Prepare verification tooling
+on:
+  push:
+    paths: ['.github/workflows/workbench.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm run prepare:engine
+      - run: tar --exclude='.git' -czf verification-tooling.tar.gz node_modules .cache/triangle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verification-tooling
+          path: verification-tooling.tar.gz
+          retention-days: 1
