@@ -1,0 +1,15 @@
+node_modules/
+.svelte-kit/
+build/
+.cache/
+playwright-report/
+test-results/
+src/lib/vendor/engine.js
+static/licenses/triangle.txt
+.env
+.env.*
+!.env.example
+.DS_Store
+tetrio.js
+*핸드오프*
+*handoff*
