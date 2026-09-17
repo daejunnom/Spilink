@@ -2,12 +2,12 @@
 
 An independent solo practice space for all-spin combos, plonking, and B2B surges.
 
-**Early preview.** This version uses synthetic incoming attacks. Gameplay equivalence and official TETR.IO replay compatibility are not certified.
+A session finishes after the **400th piece** by default. Enable **Continue after 400 pieces** to keep playing; the first-400-piece result remains separate.
 
-A session finishes after the **400th piece** by default. Turn on **Continue after 400 pieces** before starting to keep playing; the first-400-piece result remains separate.
+Open the upper-right **Settings** button to adjust gravity, incoming pressure, the garbage cap, starting conditions, handling, and key bindings. Time-based progression is off by default. The yellow line beside the board marks the garbage cap.
 
-Adjust gravity, incoming pressure, starting garbage, handling, and key bindings. Gravity increase is off by default. Replay downloads use `.ttr`, with optional `.ttrx` export.
+The playing area fits the browser window, including narrow and landscape layouts. Settings and detailed statistics open in panels. Use the fullscreen button for a larger playing area. Keyboard controls are available in Help; leaving the tab pauses the session.
 
-Keyboard controls are displayed beside the board. Click Start to capture gameplay input; leaving the tab pauses the session.
+Current-session undo/redo and replay playback are available. Replay downloads use `.ttr`, with optional `.ttrx` export. External `.ttr` and `.ttrm` files can be inspected, preserved, and converted without rewriting their source JSON. In-app playback currently supports Spilink v2 recordings.
 
-Spilink is not an official TETR.IO mode or achievement service.
+**Preview:** incoming attacks are synthetic. Full TETR.IO gameplay and replay-result equivalence are not certified. This is not an official TETR.IO mode or achievement service.

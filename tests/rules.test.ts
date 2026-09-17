@@ -54,7 +54,7 @@ test('cancellation does not bank future defense, and preserves hardened packets'
 });
 test('rise cap retains normal queue remainder', () => {
   const r = new Receiver({ ...c, garbageCap: 3 }), b = board(); r.receive(7, 0);
-  r.pending[0].status = 'spawn'; const result = r.take(b, 0);
+  r.pending[0].status = 'spawn'; r.pending[0].active = true; const result = r.take(b, 0);
   assert.equal(result.rows, 3); assert.equal(r.size, 4); assert.equal(r.received, 7);
 });
 test('weighted holes and sources are reproducible', () => {

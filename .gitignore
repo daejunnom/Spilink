@@ -11,3 +11,6 @@ test-results/
 tetrio.js
 *핸드오프*
 *handoff*
+
+src/lib/vendor/integrated.js
+src/lib/vendor/integrated.d.ts

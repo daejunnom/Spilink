@@ -8,11 +8,12 @@ export class Random {
 export type AttackEvent = { kind: 'surge' | 'clear' | 'allclear'; amount: number };
 export class AttackRules {
   combo = 0; btb = 0; topCombo = 0; topBtb = 0;
-  resolve(e: ClearEvent, c: Config): AttackEvent[] {
+  resolve(e: ClearEvent, c: Config, round: (n: number) => number = Math.floor): AttackEvent[] {
     const out: AttackEvent[] = [];
     if (!e.lines) { this.combo = 0; return out; }
     this.combo++;
-    if (e.lines >= 4 || e.spin !== 'none') this.btb++;
+    if (e.pc && c.allClearB2B > 0) this.btb += c.allClearB2B;
+    else if (e.lines >= 4 || e.spin !== 'none') this.btb++;
     else {
       if (this.btb > c.chargeAt) {
         const n = Math.floor((this.btb - c.chargeAt + c.chargeBase) * c.attackMultiplier);
@@ -24,15 +25,17 @@ export class AttackRules {
     this.topCombo = Math.max(this.topCombo, this.combo);
     this.topBtb = Math.max(this.topBtb, this.btb);
     const table = e.spin === 'normal' ? [0, 2, 4, 6, 10] : [0, 0, 1, 2, 4];
+    // Zenith normalizes five-line clears to four for attack calculation.
     let attack = table[Math.min(4, e.lines)];
     if (this.btb > 1) attack++;
     attack *= 1 + 0.25 * (this.combo - 1);
     if (this.combo > 2) attack = Math.max(attack, Math.log1p((this.combo - 1) * 1.25));
-    attack = Math.floor(attack * c.attackMultiplier);
+    attack = round(attack * c.attackMultiplier);
     if (c.specialBonus && e.garbageCleared > 0 && (e.spin !== 'none' || e.lines >= 4)) attack++;
+    if (c.attackCap) attack = Math.min(c.attackCap,attack);
     if (attack) out.push({ kind: 'clear', amount: attack });
     if (e.pc) {
-      const amount = Math.floor(10 * c.attackMultiplier);
+      const amount = round(c.allClearGarbage * c.attackMultiplier);
       if (amount) out.push({ kind: 'allclear', amount });
     }
     return out;

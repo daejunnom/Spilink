@@ -1,7 +1,7 @@
 // Canvas block rendering adapted from Clearra contributors (MIT).
 import type { Session } from './session.ts';
 import type { Mino } from './port.ts';
-export const COLORS: Record<string, string> = { i: '#49d4e7', j: '#6192ee', l: '#f5ad68', o: '#f0d56c', s: '#75cf9c', t: '#bc92ed', z: '#ee8491', gb: '#849499' };
+export const COLORS: Record<string, string> = { i5: '#49d4e7', gbd: '#394854', i: '#49d4e7', j: '#6192ee', l: '#f5ad68', o: '#f0d56c', s: '#75cf9c', t: '#bc92ed', z: '#ee8491', gb: '#849499' };
 function block(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, opacity = 1): void {
   ctx.globalAlpha = opacity; ctx.fillStyle = color; ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
   const bevel = Math.max(1, size * 0.07);
@@ -21,7 +21,7 @@ export function drawBoard(canvas: HTMLCanvasElement, session: Session): void {
   for (let y = 0; y < 20; y++) for (let x = 0; x < 10; x++) {
     const tile = session.engine.board.state[y]?.[x]; if (tile) block(ctx, x * size, (19 - y) * size, size, COLORS[tile.mino] ?? COLORS.gb);
   }
-  if (!['completed','topout','stopped'].includes(session.status)) {
+  if (!session.sleeping && !['completed','topout','stopped'].includes(session.status)) {
     const color = COLORS[session.engine.falling.symbol];
     for (const [x, y] of session.ghost()) if (y >= 0 && y < 20) block(ctx, x * size, (19 - y) * size, size, color, 0.2);
     for (const [x, y] of session.engine.falling.absoluteBlocks) if (y >= 0 && y < 20) block(ctx, x * size, (19 - y) * size, size, color);
