@@ -1,3 +1,4 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-export default defineConfig({ plugins: [sveltekit()], build: { target: 'es2022' } });
+import wasm from 'vite-plugin-wasm';
+export default defineConfig({ plugins: [wasm(), sveltekit()], build: { target: 'esnext' } });

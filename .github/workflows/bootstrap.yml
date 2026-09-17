@@ -26,11 +26,14 @@ jobs:
             git commit -m 'Pin preview dependencies'
             git push origin HEAD:main
           fi
+      - run: npm test
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: preview-runtime
           path: |
-            src/lib/vendor/engine.js
+            src/
+            tests/
+            package.json
             package-lock.json
-            static/licenses/triangle.txt
+            static/licenses/
