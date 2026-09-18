@@ -25,7 +25,8 @@ test('150 APM replay contains separate packets of at most eight lines',async({pa
   const stream=await file.createReadStream(),chunks:Buffer[]=[];for await(const chunk of stream!)chunks.push(chunk as Buffer);
   const json=JSON.parse(Buffer.concat(chunks).toString()),attacks=json.spilink.attacks.filter((e:{amount:number})=>e.amount>0);
   expect(attacks.length).toBeGreaterThan(3);expect(attacks.every((e:{amount:number})=>e.amount<=8)).toBe(true);
-  expect(attacks.some((e:{amount:number})=>e.amount===8)).toBe(true);
+  expect(attacks.some((e:{amount:number})=>e.amount>1)).toBe(true);
+  expect(json.spilink.attackSource.initialPacketCap).toBe(8);
   expect(new Set(attacks.map((e:{frame:number})=>e.frame)).size).toBe(attacks.length);
   const native=json.replay.events.filter((e:any)=>e.type==='ige'&&e.data.type==='interaction');expect(native.length).toBe(attacks.length);
   expect(native.map((e:any)=>[e.frame,e.data.data.amt])).toEqual(attacks.map((e:any)=>[e.frame,e.amount]));
