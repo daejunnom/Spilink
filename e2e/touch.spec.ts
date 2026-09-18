@@ -26,7 +26,7 @@ test('touch hide/show and invalid storage do not disable keyboard',async({page})
   await page.getByTestId('settings-button').click();await page.getByTestId('touch-settings').locator('summary').first().click();await page.getByTestId('touch-mode').selectOption('on');await page.getByTestId('close-panel').click();await page.keyboard.press('Escape');await expect(page.getByTestId('touch-controls')).toBeVisible();await page.keyboard.press('Space');await expect(page.getByTestId('pieces')).toHaveText('1');
 });
 test('touch multi-pointer holds release on cancel, lost capture, and settings pause',async({browser})=>{
-  const context=await browser.newContext({hasTouch:true,isMobile:true,viewport:{width:390,height:844}});const page=await context.newPage();
+  const context=await browser.newContext({hasTouch:true,isMobile:true,locale:'en-US',viewport:{width:390,height:844}});const page=await context.newPage();
   try{await setup(page);const client=await context.newCDPSession(page);const l=(await page.getByTestId('touch-moveLeft').boundingBox())!,r=(await page.getByTestId('touch-rotateCW').boundingBox())!;
     const points=[{x:l.x+l.width/2,y:l.y+l.height/2,id:1},{x:r.x+r.width/2,y:r.y+r.height/2,id:2}];
     await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points});await expect(page.getByTestId('touch-moveLeft')).toHaveClass(/held/);await expect(page.getByTestId('touch-rotateCW')).toHaveClass(/held/);
