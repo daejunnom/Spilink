@@ -1,3 +1,4 @@
+import { AppError } from './errors.ts';
 import type { GameKey } from './port.ts';
 export type Command = 'pause' | 'retry' | 'undo' | 'redo';
 export type Bindings = Record<GameKey | Command, string>;
@@ -44,7 +45,7 @@ export const DEFAULT_CONFIG: Config = {
     hold: 'KeyC', pause: 'Escape', retry: 'KeyR', undo: 'Control+KeyZ', redo: 'Control+KeyY' }
 };
 export function validateConfig(input: unknown): Config {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('설정 형식이 올바르지 않습니다.');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AppError('error.config');
   const v = input as Record<string, unknown>;
   const c = structuredClone(DEFAULT_CONFIG);
   const ranges: Partial<Record<keyof Config, [number, number, number]>> = {
@@ -61,47 +62,47 @@ export function validateConfig(input: unknown): Config {
   for (const [key, range] of Object.entries(ranges)) {
     const value = v[key] ?? c[key as keyof Config];
     const [min, max, step] = range;
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (step && Math.abs(value / step - Math.round(value / step)) > 1e-7)) throw new Error(`${key}: ${min}~${max}${step ? `, 단위 ${step}` : ''} 범위의 값을 입력하세요.`);
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (step && Math.abs(value / step - Math.round(value / step)) > 1e-7)) throw new AppError('error.range', {key,min,max,step});
     Object.assign(c, { [key]: value });
   }
   for (const key of ['continueAfter400','gravityIncrease','specialBonus','pressureAssist','safelock','cancel','may20g','ttrx','progression','cancelCorrection','targetingGrace','timeCancelFatigue','fatigue','garbageQueue','noSameHole','attackIncrease','receiveIncrease','lockDecrease'] as const) {
-    if (v[key] !== undefined && typeof v[key] !== 'boolean') throw new Error(`${key}: 토글 값이 올바르지 않습니다.`);
+    if (v[key] !== undefined && typeof v[key] !== 'boolean') throw new AppError('error.toggle', {key});
     c[key] = (v[key] ?? c[key]) as boolean;
   }
   for (const key of ['irs','ihs'] as const) {
-    if (v[key] !== undefined && !['off','hold','tap'].includes(v[key] as string)) throw new Error('IRS/IHS 설정이 올바르지 않습니다.');
+    if (v[key] !== undefined && !['off','hold','tap'].includes(v[key] as string)) throw new AppError('error.initialHandling');
     c[key] = (v[key] ?? c[key]) as Config[typeof key];
   }
   const nullableRanges = { altitude: [0, 100000], senderAltitude: [0, 100000], garbagePhase: [0, 36000], messinessInner: [0, 10], messinessChange: [0, 10], garbageFavor: [-1000, 1000] };
   for (const [key, [min, max]] of Object.entries(nullableRanges)) {
     const value = v[key] ?? null;
-    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (key === 'garbagePhase' && !Number.isInteger(value)))) throw new Error(`${key}: 범위를 확인하세요.`);
+    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (key === 'garbagePhase' && !Number.isInteger(value)))) throw new AppError('error.range', {key,min,max,step:key==='garbagePhase'?1:0});
     Object.assign(c, { [key]: value });
   }
   const enums = { bagType: ['7-bag','zenith'], roundMode: ['down','rng'], garbageEntry: ['instant','delayed','continuous'], spinBonuses: ['all-mini+','all+','all','all-mini','T-spins','T-spins+'] };
   for (const [key, values] of Object.entries(enums)) {
     const value = v[key] ?? c[key as keyof Config];
-    if (!values.includes(value as string)) throw new Error(`${key}: 지원되지 않는 선택입니다.`);
+    if (!values.includes(value as string)) throw new AppError('error.choice', {key});
     Object.assign(c, { [key]: value });
   }
   for (const key of ['playerName','initialQueue','initialBoard'] as const) {
     const value = v[key] ?? c[key];
-    if (typeof value !== 'string') throw new Error(`${key}: 문자열을 입력하세요.`);
+    if (typeof value !== 'string') throw new AppError('error.string', {key});
     c[key] = value.trim();
   }
-  if (!c.playerName || c.playerName.length > 32 || /[\x00-\x1f\x7f]/.test(c.playerName)) throw new Error('플레이어명은 1~32자여야 합니다.');
-  if (c.initialQueue.length > 4096 || (c.initialQueue && !/^(?:[IJLOSTZ]|I5)(?:[ ,]*(?:[IJLOSTZ]|I5))*$/i.test(c.initialQueue))) throw new Error('초기 큐에는 I J L O S T Z I5만 입력하세요.');
+  if (!c.playerName || c.playerName.length > 32 || /[\x00-\x1f\x7f]/.test(c.playerName)) throw new AppError('error.playerName');
+  if (c.initialQueue.length > 4096 || (c.initialQueue && !/^(?:[IJLOSTZ]|I5)(?:[ ,]*(?:[IJLOSTZ]|I5))*$/i.test(c.initialQueue))) throw new AppError('error.queue');
   if (c.initialBoard) {
     const rows = c.initialBoard.split(/\r?\n/);
-    if (rows.length > 40 || rows.some(row => !/^[.IJLOSTZGX]{10}$/i.test(row))) throw new Error('초기 보드는 한 줄에 10칸, 최대 40줄입니다. 빈칸은 점(.)을 사용하세요.');
+    if (rows.length > 40 || rows.some(row => !/^[.IJLOSTZGX]{10}$/i.test(row))) throw new AppError('error.board');
   }
   const bindings = v.bindings ?? c.bindings;
-  if (!bindings || typeof bindings !== 'object' || Array.isArray(bindings)) throw new Error('키 설정이 올바르지 않습니다.');
+  if (!bindings || typeof bindings !== 'object' || Array.isArray(bindings)) throw new AppError('error.bindings');
   const used = new Set<string>();
   for (const key of Object.keys(c.bindings) as (keyof Bindings)[]) {
     const code = (bindings as Record<string, unknown>)[key] ?? c.bindings[key];
-    if (typeof code !== 'string' || !/^(?:(?:Control|Alt|Shift|Meta)\+)*[A-Za-z][A-Za-z0-9]{0,31}$/.test(code)) throw new Error(`${key}: 지원되지 않는 키입니다.`);
-    if (used.has(code)) throw new Error(`${code}: 다른 동작에 이미 지정된 키입니다.`);
+    if (typeof code !== 'string' || !/^(?:(?:Control|Alt|Shift|Meta)\+)*[A-Za-z][A-Za-z0-9]{0,31}$/.test(code)) throw new AppError('error.key', {key});
+    if (used.has(code)) throw new AppError('error.duplicateKey', {key:code});
     used.add(code); c.bindings[key] = code;
   }
   return c;

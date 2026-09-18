@@ -5,3 +5,14 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 .session-status{min-width:0;overflow:hidden;text-overflow:ellipsis}.top-tools{flex-shrink:0}
+
+:root{--garbage-waiting:rgba(255,219,70,.42);--garbage-warning:rgba(240,137,38,.78);--garbage-ready:rgb(238,59,56)}
+.meter-stack{position:absolute;inset:0;display:flex;flex-direction:column-reverse;overflow:hidden}.meter-segment{flex:none;min-height:1px;border-top:1px solid #ffffff33}.meter-segment.waiting,.packet-list .waiting{background:var(--garbage-waiting)}.meter-segment.warning,.packet-list .warning{background:var(--garbage-warning)}.meter-segment.ready,.packet-list .ready{background:var(--garbage-ready)}.cap-line{z-index:2}.play-actions{grid-template-columns:repeat(5,minmax(0,1fr))}.language-select{padding-bottom:14px;border-bottom:1px solid #344958}.session-status{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.top-tools{flex-shrink:0}
+@media(max-width:400px){.top-tools button{padding:7px 5px;font-size:9px}.session-status{max-width:80px;font-size:8px}}
+
+/* Touch preferences never change the game profile or keyboard bindings. */
+.app.touch-enabled{grid-template-rows:38px minmax(0,1fr) var(--touch-height) 88px}.app.touch-enabled>.utility-row{grid-column:1;grid-row:1}.app.touch-enabled>.play-stage{grid-column:1;grid-row:2}.app.touch-enabled>.bottom-deck{grid-column:1;grid-row:4}
+.app.touch-landscape{grid-template-rows:38px minmax(0,1fr) 88px}.app.touch-landscape>.bottom-deck{grid-row:3}
+@media(max-height:500px){.app.touch-landscape{grid-template-rows:32px minmax(0,1fr) 76px}.app.touch-landscape .action-readout{font-size:9px}}
+
+.touch-editing .top-tools{display:none}.touch-editing .session-status{margin-left:auto}

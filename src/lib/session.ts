@@ -1,3 +1,4 @@
+import { AppError } from './errors.ts';
 import { Engine } from './vendor/integrated.js';
 import { validateConfig, type Config } from './config.ts';
 import type { ClearEvent, EnginePort, KeyFrame } from './port.ts';
@@ -79,9 +80,9 @@ export class Session {
   pause(): void { if(this.status==='running')this.status='paused'; }
   stop(): void { if(['ready','running','paused'].includes(this.status))this.status='stopped'; }
   applySettings(input:Config):void {
-    if(this.status==='running'||this.playback)throw new Error('일시정지한 뒤 설정을 적용하세요.');
+    if(this.status==='running'||this.playback)throw new AppError('error.pauseRequired');
     const next=validateConfig(input);
-    for(const key of ['seed','bagType','initialQueue','initialBoard','initialGarbage','initialPending','startGrace'] as const)if(next[key]!==this.config[key])throw new Error('시드·시작 보드·공급 변경은 새 연습에서 적용하세요.');
+    for(const key of ['seed','bagType','initialQueue','initialBoard','initialGarbage','initialPending','startGrace'] as const)if(next[key]!==this.config[key])throw new AppError('error.restartRequired');
     this.branch();this.environment.change(this.config,next);this.config=next;this.syncConfig();
     this.changes.push({frame:this.frame,tick:this.ticks,config:structuredClone(next)});
   }

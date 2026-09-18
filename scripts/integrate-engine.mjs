@@ -24,5 +24,18 @@ replace('this.dynamic.gravity.get() * this.handling.sdf > this.board.height', 't
 replace('    while (this.#__internal_fall(1)) ;', '    while (this.#__internal_fall(1)) this.spilinkHooks?.score?.(2);');
 replace('  #slamToFloor() {\n    while (this.#__internal_fall(1)) {', '  #slamToFloor() {\n    while (this.#__internal_fall(1)) {\n      if (this.input.keys.softDrop) this.spilinkHooks?.score?.(1);');
 replace('      if (Math.floor(y) !== Math.floor(this.falling.location[1])) {', '      if (Math.floor(y) !== Math.floor(this.falling.location[1])) {\n        if (this.input.keys.softDrop) this.spilinkHooks?.score?.(1);');
+// Keep collision checks in the unrounded coordinate space until bounds are checked.
+replace('    if (y >= boardHeight) return false;\n    if (board[y][x]) return false;', '    if (y > boardHeight - 1) return false;\n    if (board[Math.floor(y)][x]) return false;');
+replace('    const baseY = floorPieceY - ao[1];', '    const baseY = pieceLocation[1] - ao[1];');
+replace('testBlocks[j] = [movedBaseX + block[0], floorNewY - block[1]];', 'testBlocks[j] = [movedBaseX + block[0], newY - block[1]];');
+replace('Math.floor(options.boardWidth / 2 - tetromino.matrix.w / 2)', 'Math.ceil(options.boardWidth / 2) - 1 - tetromino.matrix.dx');
+replace('options.boardHeight + 2.04', 'options.boardHeight + 1.04 + tetromino.matrix.dy');
+replace('this.highestY = options.boardHeight + 2;', 'this.highestY = options.boardHeight + 1 + tetromino.matrix.dy;');
+output += '\nexport { legal as rotationPositionIsLegal, performKick as attemptRotation, kicks as rotationTables, tetrominoes as pieceDefinitions };\n';
 writeFileSync(new URL('../src/lib/vendor/integrated.js', import.meta.url), output);
-writeFileSync(new URL('../src/lib/vendor/integrated.d.ts', import.meta.url), "export const Engine: new (options: unknown) => import('../port.ts').EnginePort;\n");
+writeFileSync(new URL('../src/lib/vendor/integrated.d.ts', import.meta.url), `export const Engine: new (options: unknown) => import('../port.ts').EnginePort;
+export const rotationPositionIsLegal: (blocks: number[][], board: unknown[][]) => boolean;
+export const rotationTables: Record<string, Record<string, Record<string, number[][]>>>;
+export const pieceDefinitions: Record<string, {matrix: {dx: number; dy: number; data: number[][][]}}>;
+export const attemptRotation: (table: string, piece: string, location: number[], offset: number[], limited: boolean, blocks: number[][], from: number, to: number, board: unknown[][]) => boolean | {newLocation: number[]; kick: number[]; id: string; index: number};
+`);
