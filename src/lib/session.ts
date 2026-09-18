@@ -1,3 +1,4 @@
+import { ATTACK_WINDOW_FRAMES } from './attack-budget.ts';
 import { projectSpawnWarning, type SpawnWarning } from './spawn-preview.ts';
 import { captureReplayEnd, sameReplayEnd, type ReplayEndState } from './replay-state.ts';
 import { pushFallingOneRow, garbageCeilingFull } from './survival.ts';
@@ -210,7 +211,15 @@ export class Session {
   }
   summary() {
     const seconds = this.frame / 60;
-    return { score:this.score, altitude:this.environment.altitude, floor:this.receiver.config.floor, cancelStreak:this.receiver.cancelStreak, targetingGrace:this.receiver.targetingGrace, vsscore:(this.measure.attack+this.clearedGarbage)/Math.max(1,this.measure.pieces)*(this.measure.pieces/Math.max(1,seconds))*100, pieces: this.measure.pieces, attack: this.measure.attack, first400Attack: this.measure.first400Attack,
+    let recentGenerated = 0;
+    const end = this.historyIndex < this.history.length - 1 ? this.history[this.historyIndex].incomingLength : this.incoming.length;
+    for (let i = end - 1; i >= 0; i--) {
+      const event = this.incoming[i];
+      if (event.frame <= this.frame - ATTACK_WINDOW_FRAMES) break;
+      if (event.frame <= this.frame) recentGenerated += event.amount;
+    }
+    const remainingBudget = Math.max(0, this.config.incomingApm - recentGenerated);
+    return { recentGenerated, remainingBudget, score:this.score, altitude:this.environment.altitude, floor:this.receiver.config.floor, cancelStreak:this.receiver.cancelStreak, targetingGrace:this.receiver.targetingGrace, vsscore:(this.measure.attack+this.clearedGarbage)/Math.max(1,this.measure.pieces)*(this.measure.pieces/Math.max(1,seconds))*100, pieces: this.measure.pieces, attack: this.measure.attack, first400Attack: this.measure.first400Attack,
       checkpoint: this.measure.checkpoint, sent: this.sent, received: this.receiver.received, risen: this.receiver.risen,
       cancelled: this.receiver.cancelled, lines: this.lines, spins: this.spins, allClears: this.allClears, inputs: this.inputs, holds: this.holds,
       combo: Math.max(0, this.rules.combo - 1), btb: Math.max(0, this.rules.btb - 1), maxCombo: Math.max(0, this.rules.topCombo - 1), maxBtb: Math.max(0, this.rules.topBtb - 1),

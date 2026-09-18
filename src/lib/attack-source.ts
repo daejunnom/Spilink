@@ -1,10 +1,13 @@
 import type { Config } from './config.ts';
 import { Random } from './rules.ts';
+import { ATTACK_WINDOW_FRAMES, RollingAttackBudget } from './attack-budget.ts';
 
-/** Synthetic practice pacing, not a sampled multiplayer population. */
+/** Synthetic size/gap distribution. Receiver windup rules are a separate, native contract. */
 export const ATTACK_PACING = Object.freeze({
-  version: 'paced-1', framesPerMinute: 3600, cadenceFrames: 240,
-  minimumJitter: .75, maximumJitter: 1.25, assistHeight: 16
+  version: 'rolling-1', framesPerMinute: ATTACK_WINDOW_FRAMES,
+  minimumJitter: .7, maximumJitter: 1.3, assistHeight: 16,
+  smallChance: .2, mediumChance: .65, smallMax: 2, mediumMax: 7, largeMin: 8,
+  packetBudgetShare: .5, minimumGapFrames: 12, maximumClockGap: 300
 });
 export type GeneratedAttack = { amount: number; assisted: boolean };
 export function stochasticDamage(expected: number, draw: () => number): number {
@@ -15,52 +18,78 @@ export function stochasticDamage(expected: number, draw: () => number): number {
 export class AttackSource {
   random: Random;
   nextFrame: number;
+  private budget = new RollingAttackBudget();
   private lastFrame = 0;
+  private processedFrame = -1;
   private credit = 0;
+  private planned = 1;
   private rate: number;
   private cap: number;
   private suppressed = false;
   constructor(c: Config) {
     this.random = new Random((c.seed + 97) % 2147483646 + 1);
-    this.nextFrame = c.firstAttackFrames; this.rate = c.incomingApm; this.cap = c.maxAttack;
+    this.rate = c.incomingApm; this.cap = c.maxAttack;
+    this.nextFrame = c.firstAttackFrames;
+    this.plan(c.firstAttackFrames, c);
   }
-  private interval(c: Config): number {
-    const p = ATTACK_PACING;
+  private integer(min: number, max: number): number { return min + Math.floor(this.random.next() * (max - min + 1)); }
+  private plan(frame: number, c: Config): void {
+    if (!c.incomingApm) { this.nextFrame = frame; return; }
+    const p = ATTACK_PACING, choice = this.random.next();
+    const desired = choice < p.smallChance ? this.integer(1, p.smallMax)
+      : choice < p.smallChance + p.mediumChance ? this.integer(2, p.mediumMax)
+      : this.integer(p.largeMin, Math.max(p.largeMin, c.maxAttack));
+    // Low rates wait for a multi-line group instead of flushing a sub-one credit every few seconds.
+    this.planned = Math.min(desired, c.maxAttack, Math.ceil(c.incomingApm), Math.max(2, Math.ceil(c.incomingApm * p.packetBudgetShare)));
     const jitter = p.minimumJitter + this.random.next() * (p.maximumJitter - p.minimumJitter);
-    // A small packet cap changes cadence, not the requested long-run rate.
-    const capFrames = c.incomingApm > 0 ? c.maxAttack * p.framesPerMinute / c.incomingApm : Infinity;
-    return Math.max(1, Math.floor(Math.min(p.cadenceFrames * jitter, capFrames)));
+    const fundingTime = Math.max(0, this.planned - this.credit) * p.framesPerMinute / c.incomingApm;
+    const minimumGap = Math.min(p.minimumGapFrames, p.framesPerMinute / c.incomingApm / 2);
+    this.nextFrame = frame + Math.max(1, Math.ceil(Math.max(minimumGap, Math.min(p.framesPerMinute, fundingTime * jitter))));
   }
   next(frame: number, c: Config, pressure: number): GeneratedAttack | null {
     if (!Number.isSafeInteger(frame) || frame < this.lastFrame) throw new Error('Invalid attack clock.');
-    let elapsed = frame - this.lastFrame; this.lastFrame = frame;
-    if (c.incomingApm !== this.rate || c.maxAttack !== this.cap) {
-      // Do not charge a new rate for old time or dump an old high-rate budget.
-      this.rate = c.incomingApm; this.cap = c.maxAttack; this.credit = 0;
-      this.nextFrame = frame + this.interval(c); elapsed = 0;
-    }
+    if (frame === this.processedFrame) return null;
+    this.processedFrame = frame;
+    const previous = this.lastFrame, elapsed = frame - previous; this.lastFrame = frame;
+    this.budget.advance(frame);
+    const changed = c.incomingApm !== this.rate || c.maxAttack !== this.cap;
     const suppress = c.incomingApm > 0 && c.pressureAssist && pressure >= ATTACK_PACING.assistHeight;
-    if (suppress !== this.suppressed) {
-      this.suppressed = suppress; this.credit = 0;
-      this.nextFrame = Math.max(this.nextFrame, frame + this.interval(c));
-      return { amount: 0, assisted: suppress };
+    const suppressionChanged = suppress !== this.suppressed;
+    this.rate = c.incomingApm; this.cap = c.maxAttack; this.suppressed = suppress;
+    if (changed || suppressionChanged || elapsed > ATTACK_PACING.maximumClockGap) {
+      // Keep actual last-minute spend through edits and relief; only unspent preparation is discarded.
+      this.credit = 0; this.plan(Math.max(frame, c.firstAttackFrames), c);
+      return suppressionChanged ? { amount: 0, assisted: suppress } : null;
     }
-    if (!c.incomingApm || suppress) { this.credit = 0; return null; }
-    const maxWindow = ATTACK_PACING.cadenceFrames * ATTACK_PACING.maximumJitter;
-    // Preparation delays and skipped time cannot bank a large catch-up attack.
-    const maximumCredit = Math.min(c.maxAttack, c.incomingApm * maxWindow / ATTACK_PACING.framesPerMinute);
-    this.credit = Math.min(maximumCredit, this.credit + elapsed * c.incomingApm / ATTACK_PACING.framesPerMinute);
+    if (!c.incomingApm || suppress || frame < c.firstAttackFrames) return null;
+    const eligible = Math.max(0, frame - Math.max(previous, c.firstAttackFrames));
+    // Bounded preparation prevents an upfront minute or post-relief repayment, but is not the rolling cap.
+    const creditCap = Math.min(c.maxAttack, Math.max(1, Math.ceil(c.incomingApm))) + 1;
+    this.credit = Math.min(creditCap, this.credit + eligible * c.incomingApm / ATTACK_PACING.framesPerMinute);
     if (frame < this.nextFrame) return null;
-    const amount = stochasticDamage(this.credit, () => this.random.next());
-    this.credit = 0; this.nextFrame = frame + this.interval(c);
-    return amount > 0 ? { amount, assisted: false } : null;
+    const available = this.budget.available(c.incomingApm);
+    const minimumGroup = Math.min(this.planned, 2);
+    if (available < minimumGroup) {
+      // Do not repeatedly shave an intended group down to one line or reroll a failed probability each frame.
+      this.nextFrame = Math.max(frame + 1, this.budget.nextRelease() ?? frame + ATTACK_WINDOW_FRAMES);
+      return null;
+    }
+    const amount = stochasticDamage(Math.max(0, Math.min(this.credit, this.planned, available)), () => this.random.next());
+    if (amount) {
+      this.budget.spend(frame, amount, c.incomingApm);
+      // A rounded-up line is charged in full. Its fractional excess is never free or repeatedly reissued.
+      this.credit -= amount;
+    }
+    this.plan(frame, c);
+    return amount ? { amount, assisted: false } : null;
   }
   snapshot() {
     return { randomState: this.random.state, nextFrame: this.nextFrame, lastFrame: this.lastFrame,
-      credit: this.credit, rate: this.rate, cap: this.cap, suppressed: this.suppressed };
+      processedFrame: this.processedFrame, credit: this.credit, planned: this.planned,
+      rate: this.rate, cap: this.cap, suppressed: this.suppressed, recent: this.budget.snapshot() };
   }
   restore(value: ReturnType<AttackSource['snapshot']>): void {
-    const { randomState, ...rest } = value;
-    Object.assign(this, rest); this.random.state = randomState;
+    const { randomState, recent, ...rest } = value;
+    Object.assign(this, rest); this.random.state = randomState; this.budget.restore(recent);
   }
 }
