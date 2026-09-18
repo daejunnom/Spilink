@@ -76,7 +76,9 @@ test('language formatting has no influence on deterministic session output',()=>
   const a=new Session(cfg({incomingApm:0})),b=new Session(cfg({incomingApm:0}));a.start();b.start();
   for(let i=0;i<60;i++){createTranslator(i%2?'ja':'ko')('status.running');a.tick();b.tick();}assert.deepEqual(a.summary(),b.summary());
 });
-test('attack source has no special early-session size multiplier',()=>{
-  const c=cfg({firstAttackFrames:0}),a=new AttackSource(c),b=new AttackSource(c);b.nextFrame=10000;
-  assert.deepEqual(a.next(0,c,0),b.next(10000,c,0));assert.equal(b.nextFrame-a.nextFrame,10000);
+test('attack source has no minute-boundary multiplier when its entire clock is shifted',()=>{
+  const c=cfg({firstAttackFrames:0}),a=new AttackSource(c),b=new AttackSource(c),state=a.snapshot();
+  b.restore({...state,lastFrame:state.lastFrame+10000,nextFrame:state.nextFrame+10000});
+  for(let frame=0;frame<7200;frame++)assert.deepEqual(a.next(frame,c,0),b.next(frame+10000,c,0));
+  assert.equal(b.nextFrame-a.nextFrame,10000);
 });

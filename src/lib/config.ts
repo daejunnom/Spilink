@@ -51,7 +51,7 @@ export function validateConfig(input: unknown): Config {
   const c = structuredClone(DEFAULT_CONFIG);
   const ranges: Partial<Record<keyof Config, [number, number, number]>> = {
     seed: [1, 2147483646, 1], gravity: [0, 1000, 0], gravityRate: [0, 100, 0],
-    incomingApm: [0, 2000, 0], maxAttack: [1, 1000, 1], floor: [1, 10, 1],
+    incomingApm: [0, 2000, 0.1], maxAttack: [1, 1000, 1], floor: [1, 10, 1],
     initialGarbage: [0, 19, 1], firstAttackFrames: [0, 36000, 1], garbageCap: [1, 40, 1],
     attackMultiplier: [0, 100, 0], receiveMultiplier: [0, 100, 0], cancelMultiplier: [1, 100, 0],
     chargeAt: [0, 10, 1], chargeBase: [0, 10, 1], arr: [0, 5, 0.1], das: [1, 20, 0.1],

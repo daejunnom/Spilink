@@ -1,6 +1,9 @@
 import { messages as commonMessages } from './common-messages.ts';
 export const messages = {
   ...commonMessages,
+  "pressure.warning": {"en":"Incoming large attack: level {level}, {amount} lines", "ko":"대형 공격 예고: {level}단계, {amount}줄", "ja":"大攻撃の予告：レベル{level}、{amount}ライン"},
+  "pressure.pacingHint": {"en":"APM is the average generated damage per minute, before receiver adjustments. One decimal is supported. Packets and intervals vary; fractional budgets become a chance of one extra line. A small maximum packet uses shorter intervals. The first-attack delay does not bank a large burst.", "ko":"APM은 수신 보정 전 분당 평균 생성 공격량이며 소수 첫째 자리까지 지원합니다. 양과 간격은 조금씩 달라지고, 시간별 예산의 소수는 1줄 추가 확률로 처리합니다. 단일 공격 상한이 작으면 간격이 짧아집니다. 첫 공격 대기 중 대량 공격을 적립하지 않습니다.", "ja":"APMは受信補正前の1分あたりの平均生成攻撃量で、小数第1位まで対応します。量と間隔は変動し、時間ごとの小数予算は1ライン追加の確率になります。単発上限が小さい場合は間隔を短くします。開始待機中に大攻撃を蓄積しません。"},
+  "pressure.warningHint": {"en":"The top exclamation mark previews a large incoming attack, not a count of players targeting you.", "ko":"상단 느낌표는 대형 수신 공격의 예고이며, 나를 타겟팅하는 플레이어 수가 아닙니다.", "ja":"上部の感嘆符は大攻撃の予告であり、自分を狙うプレイヤー数ではありません。"},
   "replay.externalInfo": {"en": "External and older Spilink replays can be inspected, preserved and converted. Only matching Spilink v3 records are simulated; unsupported versions are not silently reinterpreted.", "ko": "외부·이전 Spilink 기록은 검사·원문 보존·변환을 지원합니다. 자체 재생은 일치하는 Spilink v3 기록만 지원하며, 이전 규칙을 임의로 바꿔 재생하지 않습니다.", "ja": "外部・旧Spilink記録は検査・原文保存・変換に対応します。独自再生は一致するSpilink v3記録のみで、旧ルールを無断で置き換えません。"},
   "hold.locked": {"en": "Hold unavailable until the next piece spawns", "ko": "다음 미노 출현 전까지 재홀드 불가", "ja": "次のミノが出現するまで再ホールド不可"},
   "hold.available": {"en": "Hold available", "ko": "홀드 가능", "ja": "ホールド可能"},

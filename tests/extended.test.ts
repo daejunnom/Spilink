@@ -115,7 +115,7 @@ test('settings changes survive export, import and replay',()=>{
   const file=inspectJson(bytes(s.exportReplay()));assert.ok(file.session);const r=new Session(file.session.config,file.session.source);r.start();for(let i=0;i<s.ticks+2;i++)r.tick();assert.deepEqual(r.engine.board.state,s.engine.board.state);assert.equal(r.environment.gravity,s.environment.gravity);assert.equal(r.score,s.score);
 });
 test('export contains required result families and native unique IGE ids',()=>{
-  const s=new Session(cfg({incomingApm:200,firstAttackFrames:0}));s.start();for(let i=0;i<60;i++)s.tick();s.tick([key(s,'hardDrop')]);const out=s.exportReplay(),stats=out.replay.results.stats;
+  const s=new Session(cfg({incomingApm:200,firstAttackFrames:0}));s.start();for(let i=0;i<360;i++)s.tick();s.tick([key(s,'hardDrop')]);const out=s.exportReplay(),stats=out.replay.results.stats;
   assert.equal(out.version,1);assert.equal(out.replay.options.version,19);assert.ok(out.users[0].username);assert.ok(stats.clears);assert.ok(stats.zenith);assert.ok(Number.isFinite(stats.finaltime));assert.ok(Number.isFinite(out.replay.results.aggregatestats.vsscore));
   const ids=out.replay.events.filter(e=>e.type==='ige').map((e:any)=>e.data.id);assert.equal(new Set(ids).size,ids.length);assert.ok(ids.length>0);
 });

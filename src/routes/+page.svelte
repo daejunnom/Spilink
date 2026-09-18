@@ -3,6 +3,8 @@
   import { createTranslator, errorMessage, type MessageKey } from '$lib/i18n/index';
   let t=createTranslator('en');
   $: t=$translation;
+  import AttackWarning from '$lib/components/AttackWarning.svelte';
+  import type { WindupNotice } from '$lib/windup';
   import { onMount, tick } from 'svelte';
   import { base } from '$app/paths';
   import '../app.css';
@@ -36,6 +38,7 @@
   let holdLocked=false,replayMismatch=false;
   let holdCells:ReturnType<typeof previewCells>=[],nextCells:ReturnType<typeof previewCells>[]=[];
   let packets:GarbageSegment[]=[];
+  let windups:WindupNotice[]=[],warningFrame=0;
   let saved:SavedReplay|null=null,imported:ReplayFile|null=null;
   $: statusNames={ready:t('status.ready'),running:t('status.running'),paused:t('status.paused'),completed:t('status.completed'),topout:t('status.topout'),stopped:t('status.stopped')};
   $: locked=status==='running'||status==='paused';
@@ -47,6 +50,7 @@
     replayMismatch=session.replayMismatch;lastAction=session.lastAction;lastAttack=session.lastAttack;assist=session.assistActive;canUndo=session.canUndo;canRedo=session.canRedo;
     holdLocked=session.engine.holdLocked;holdCells=previewCells(session,session.engine.held);nextCells=Array.from(session.engine.queue).slice(0,5).map(p=>previewCells(session,p));
     packets=garbageSegments(session.receiver,session.frame);
+    windups=session.receiver.windups;warningFrame=session.frame;
   }
   function packetTitle(packet:GarbageSegment){return t('garbage.'+packet.urgency as MessageKey)+': '+packet.amount+(packet.remainingFrames===null?' · '+t('garbage.queued'):' · '+(packet.remainingFrames/60).toFixed(2)+'s');}
   function message(e:unknown){error=errorMessage(e,$locale);console.error(e);}
@@ -102,7 +106,7 @@
   async function openPanel(name:typeof modal){touchEditing=false;pause();keyboard?.release();if(name==='replay')remember();modal=name;await tick();dialog?.showModal();}
   function closePanel(){dialog?.close();modal='';surface?.focus({preventScroll:true});}
   async function toggleFullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notice=t('notice.fullscreen');}}
-  function fit(){if(!stage)return;const {width,height}=stage.getBoundingClientRect();sideWidth=Math.max(24,Math.min(88,width*.12,(height-81)/2.7));boardWidth=Math.max(50,Math.floor(Math.min((height-26)/BOARD_ASPECT,width-2*sideWidth-48-(showTouch&&orientation==='landscape'?4*touchPreferences.size+32:0),580)));}
+  function fit(){if(!stage)return;const {width,height:outerHeight}=stage.getBoundingClientRect();const height=outerHeight-(parseFloat(getComputedStyle(stage).paddingTop)||0);sideWidth=Math.max(24,Math.min(88,width*.12,(height-81)/2.7));boardWidth=Math.max(50,Math.floor(Math.min((height-26)/BOARD_ASPECT,width-2*sideWidth-48-(showTouch&&orientation==='landscape'?4*touchPreferences.size+32:0),580)));}
   function time(n:number){return `${Math.floor(n/60).toString().padStart(2,'0')}:${(n%60).toFixed(1).padStart(4,'0')}`;}
   onMount(()=>{
     const cleanupLocale=initLocale();mounted=true;
@@ -141,6 +145,7 @@
     </nav>
   </div>
   <section class="play-stage" bind:this={stage} aria-label={t('aria.player')}>
+    <AttackWarning notices={windups} frame={warningFrame} visible={status==='running'||status==='paused'} />
     <div class="board-layout">
       <aside class="hold-side"><h2>HOLD</h2><div class="mino-box" class:hold-locked={holdLocked} data-testid="hold-preview" data-locked={holdLocked} title={t(holdLocked?'hold.locked':'hold.available')}><PiecePreview cells={holdCells} label={t(holdLocked?'hold.locked':'hold.available')} /></div><div class="mini-counter"><span>COMBO</span><strong>{stats?.combo??0}</strong></div><div class="mini-counter"><span>B2B</span><strong>{stats?.btb??0}</strong></div><div class="mini-counter first400"><span>400 ATTACK</span><strong>{stats?.first400Attack??0}</strong></div></aside>
       <div class="board-shell">
@@ -191,7 +196,7 @@
         <h2>{t('stats.session')}</h2><dl>{#each [['TIME',time(stats?.time??0)],['ATTACK',stats?.attack??0],['APM',(stats?.apm??0).toFixed(2)],['PPS',(stats?.pps??0).toFixed(2)],['VS',(stats?.vsscore??0).toFixed(2)],['LINES SENT',stats?.sent??0],['LINES RECEIVED',stats?.received??0],['LINES',stats?.lines??0],['MAX COMBO',stats?.maxCombo??0],['MAX B2B',stats?.maxBtb??0],['SPINS',stats?.spins??0],['ALL CLEARS',stats?.allClears??0],['KEYS',stats?.inputs??0],['HOLDS',stats?.holds??0],['FLOOR',stats?.floor??1],['ALTITUDE',(stats?.altitude??0).toFixed(2)]] as [label,value]}<div><dt>{label}</dt><dd>{value}</dd></div>{/each}</dl>
         <h2>{t('aria.garbage')}</h2><div class="packet-list">{#each packets as p}<span class={p.urgency} title={packetTitle(p)}>{p.amount}</span>{/each}</div>
       {:else}
-        <h2>{t('help.controls')}</h2><p>{t('help.keys')}</p><p>{t('help.history')}</p><p>{t('help.measurement')}</p><p>{t('help.independent')}</p>
+        <h2>{t('help.controls')}</h2><p>{t('help.keys')}</p><p>{t('help.history')}</p><p>{t('help.measurement')}</p><p>{t('pressure.warningHint')}</p><p>{t('help.independent')}</p>
         <nav class="license-links"><a href="https://github.com/daejunnom/Spilink" target="_blank" rel="noreferrer">GitHub</a><a href={`${base}/licenses/triangle.txt`} target="_blank" rel="noreferrer">{t('license.triangle')}</a><a href={`${base}/licenses/clearra.txt`} target="_blank" rel="noreferrer">{t('license.clearra')}</a><a href={`${base}/licenses/ttrx.txt`} target="_blank" rel="noreferrer">{t('license.ttrx')}</a></nav>
       {/if}
     </div>

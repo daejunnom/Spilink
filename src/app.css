@@ -3,3 +3,5 @@
 .board-shell{height:calc(var(--board-width)*var(--board-aspect))}
 .incoming-meter{top:var(--spawn-band)}
 .hold-locked svg{filter:grayscale(1);opacity:.4}.timing-settings{margin:14px 0}.timing-settings output{display:block;font-size:12px;line-height:1.6;padding:8px;background:#182e38;border-radius:5px}
+
+.play-stage{position:relative;padding-top:32px}

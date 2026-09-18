@@ -37,11 +37,12 @@
     <label class="toggle"><input type="checkbox" bind:checked={config.gravityIncrease} /><span>{t('setup.gravityIncrease')}</span></label>
     {#if config.gravityIncrease}<label>{t('setup.gravityRate')}<input type="number" min="0" step="0.0001" bind:value={config.gravityRate} /></label>{/if}
     <div class="fields">
-      <label>{t('setup.incomingApm')} <span>APM</span><input data-testid="incoming-apm" type="number" min="0" max="2000" step="1" bind:value={config.incomingApm} /></label>
+      <label>{t('setup.incomingApm')} <span>APM</span><input data-testid="incoming-apm" type="number" min="0" max="2000" step="0.1" bind:value={config.incomingApm} /></label>
       <label>{t('setup.maxAttack')}<input type="number" min="1" max="1000" step="1" bind:value={config.maxAttack} /></label>
       <label>{t('setup.initialGarbage')}<input type="number" min="0" max="19" step="1" bind:value={config.initialGarbage} /></label>
       <label>{t('setup.seed')}<input data-testid="seed" readonly type="number" min="1" max="2147483646" step="1" bind:value={config.seed} /></label>
     </div>
+    <p class="muted">{t('pressure.pacingHint')}</p>
     <label class="toggle"><input type="checkbox" bind:checked={config.pressureAssist} /><span>{t('setup.assist')}<small>{t('setup.assistHint')}</small></span></label>
     <GarbageTiming bind:config />
     <details>

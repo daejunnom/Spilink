@@ -1,3 +1,4 @@
+import { WINDUP, windupEnd, type WindupNotice } from './windup.ts';
 import type { Config } from './config.ts';
 import type { ClearEvent, Tile } from './port.ts';
 import { Random, splitLargeAttack } from './rules.ts';
@@ -11,6 +12,7 @@ export type Rise = { at: number; column: number; hardened: boolean; packetId: nu
 export type RawAttack = { amount: number; source: number; altitude?: number; column?: number; hardened?: boolean; iid?: number; ackiid?: number };
 export class Receiver {
   pending: Packet[] = []; timers: Timer[] = []; continuous: Rise[] = []; delayed: Rise[] = [];
+  windups: WindupNotice[] = [];
   received = 0; risen = 0; cancelled = 0; nextId = 0; windupUntil = 0; riseLockedUntil = 0;
   cancelStreak = 0; targetingGrace = 0; lastAttack = 0; lastTank = 0; staleFrame = 0; stalePieces = 0;
   lastColumn: number | null = null; changedColumn = false;
@@ -70,8 +72,9 @@ export class Receiver {
       else {
         const parts = splitLargeAttack(packet.amount,this.config.altitude ?? FLOOR_ALTITUDES[this.config.floor]);
         const start = Math.max(frame,this.windupUntil);
-        this.windupUntil = start+120+30*parts.length;
-        parts.forEach((amount,i) => this.timers.push({at:start+60+30*i,kind:'enter',packet:{...packet,id:++this.nextId,amount}}));
+        this.windupUntil = start+WINDUP.reservationFrames+WINDUP.partSpacingFrames*parts.length;
+        this.windups.push({id:packet.id,start,parts:parts.length,amount:parts.reduce((sum,n)=>sum+n,0),source:packet.source});
+        parts.forEach((amount,i) => this.timers.push({at:start+WINDUP.firstPartFrames+WINDUP.partSpacingFrames*i,kind:'enter',packet:{...packet,id:++this.nextId,amount}}));
       }
     }
   }
@@ -101,6 +104,7 @@ export class Receiver {
     if (packet.status !== 'spawn') this.timers.push({at:frame+packet.delay,kind:'phase',packet});
   }
   advance(frame: number): void {
+    this.windups = this.windups.filter(n => frame < windupEnd(n));
     // Due events are visited in reverse insertion order. No wall-clock timers participate.
     for (let i = this.timers.length-1; i >= 0; i--) {
       const t = this.timers[i]; if (t.at > frame) continue;
@@ -204,24 +208,10 @@ export class Receiver {
     if(!overflow&&!sleeping&&this.continuous.length&&frame>=this.riseLockedUntil){overflow=this.push(board,this.continuous.shift()!,frame);rows++;if(!overflow&&onRow&&!onRow())overflow=true;this.riseLockedUntil=frame+this.config.garbageAre;}
     return {rows,overflow};
   }
-  snapshot(){ return structuredClone({pending:this.pending,timers:this.timers,continuous:this.continuous,delayed:this.delayed,
+  snapshot(){ return structuredClone({windups:this.windups,pending:this.pending,timers:this.timers,continuous:this.continuous,delayed:this.delayed,
     received:this.received,risen:this.risen,cancelled:this.cancelled,nextId:this.nextId,windupUntil:this.windupUntil,riseLockedUntil:this.riseLockedUntil,
     cancelStreak:this.cancelStreak,targetingGrace:this.targetingGrace,lastAttack:this.lastAttack,lastTank:this.lastTank,staleFrame:this.staleFrame,stalePieces:this.stalePieces,
     lastColumn:this.lastColumn,changedColumn:this.changedColumn,spinColumns:this.spinColumns,ljColumns:this.ljColumns,quadColumns:this.quadColumns,spinHistory:this.spinHistory,randomState:this.random.state,seen:[...this.seen]}); }
   restore(value:ReturnType<Receiver['snapshot']>):void{const {randomState,seen,...rest}=structuredClone(value);Object.assign(this,rest);this.random.state=randomState;this.seen=new Map(seen);}
 }
-export class AttackSource {
-  random:Random;nextFrame:number;burst=0;
-  constructor(c:Config){this.random=new Random((c.seed+97)%2147483646+1);this.nextFrame=c.firstAttackFrames;}
-  next(frame:number,c:Config,pressure:number):{amount:number;assisted:boolean}|null{
-    if(!c.incomingApm||frame<this.nextFrame)return null;
-    if(c.pressureAssist&&pressure>=16){this.nextFrame=frame+120;return{amount:0,assisted:true};}
-    const big=this.burst>0||this.random.next()<.25;
-    const amount=Math.min(c.maxAttack,big?8+Math.floor(this.random.next()*Math.max(1,c.maxAttack-7)):1+Math.floor(this.random.next()*7));
-    if(this.burst>0)this.burst--;else if(big)this.burst=Math.floor(this.random.next()*3);
-    const delay=this.burst?45+this.random.next()*75:amount*3600/c.incomingApm*(.5+this.random.next());
-    this.nextFrame=frame+Math.max(6,Math.round(delay));return{amount,assisted:false};
-  }
-  snapshot(){return{randomState:this.random.state,nextFrame:this.nextFrame,burst:this.burst};}
-  restore(s:ReturnType<AttackSource['snapshot']>){this.random.state=s.randomState;this.nextFrame=s.nextFrame;this.burst=s.burst;}
-}
+export { AttackSource } from './attack-source.ts';
