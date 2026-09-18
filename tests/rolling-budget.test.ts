@@ -75,7 +75,7 @@ test('repeated calls at the same game frame cannot spend twice or redraw probabi
 test('sub-one budgets keep integer damage and conserve fractional overshoot',()=>{
   const c=config({incomingApm:.1}),s=new AttackSource(c);let sum=0;
   for(let f=0;f<60000;f++){const e=s.next(f,c,0);if(e?.amount){assert.equal(e.amount,1);sum++;}assert.ok(sum<=f*c.incomingApm/3600+1+1e-7);}
-  assert.ok(sum>0);assert.equal(ATTACK_PACING.version,'rolling-1');
+  assert.ok(sum>0);assert.equal(ATTACK_PACING.version,'rolling-split-1');
 });
 test('budget readout uses recorded attacks, so live and replay match without sender simulation',()=>{
   const c=config({incomingApm:20,gravity:0,cancelCorrection:false,targetingGrace:false}),s=new Session(c);s.start();

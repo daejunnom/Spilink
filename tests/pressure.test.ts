@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AttackSource, ATTACK_PACING, stochasticDamage } from '../src/lib/attack-source.ts';
 import { DEFAULT_CONFIG, validateConfig, type Config } from '../src/lib/config.ts';
+import { incomingPacketLimit } from '../src/lib/attack-packets.ts';
 import { Receiver } from '../src/lib/garbage.ts';
 import { WINDUP, WINDUP_STAGES, windupView, windupEnd } from '../src/lib/windup.ts';
 import { Session } from '../src/lib/session.ts';
@@ -26,7 +27,7 @@ test('startup spends earned time while allowing varied multi-line packets',()=>{
   const c=cfg({seed:1,incomingApm:45}),events=sample(c);
   assert.ok(events.every(e=>Number.isInteger(e.amount)&&e.amount>0&&e.amount<=c.maxAttack));
   let sum=0;for(const e of events){sum+=e.amount;assert.ok(sum<=(e.frame-c.firstAttackFrames)*c.incomingApm/3600+1+1e-7);}
-  assert.ok(events.some(e=>e.amount>=8));assert.ok(new Set(events.map(e=>e.amount)).size>=4);
+  assert.ok(events.every(e=>e.amount<=incomingPacketLimit(c)));assert.ok(events.some(e=>e.amount===incomingPacketLimit(c)));assert.ok(new Set(events.map(e=>e.amount)).size>=4);
   assert.ok(Math.abs(events.reduce((s,e)=>s+e.amount,0)/10-45)<3);
 });
 test('long preparation cannot bank a minute of damage',()=>{

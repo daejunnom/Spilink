@@ -16,7 +16,7 @@ test('low-APM live packets vary and the rolling budget matches exported attacks'
   const attacks=json.spilink.attacks.filter((e:{amount:number})=>e.amount>0);
   expect(attacks.some((e:{amount:number})=>e.amount>1)).toBe(true);
   const sum=attacks.filter((e:{frame:number})=>e.frame>json.replay.frames-3600&&e.frame<=json.replay.frames).reduce((n:number,e:{amount:number})=>n+e.amount,0);expect(sum).toBe(recent);
-  expect(json.spilink.attackSource.version).toBe('rolling-1');expect(json.spilink.attackSource.virtualSenders).toBe(false);
+  expect(json.spilink.attackSource.version).toBe('rolling-split-1');expect(json.spilink.attackSource.virtualSenders).toBe(false);
 });
 for(const locale of ['en-US','ko-KR','ja-JP'])test(`rolling budget description is localized in ${locale}`,async({browser})=>{
   const context=await browser.newContext({locale}),page=await context.newPage();

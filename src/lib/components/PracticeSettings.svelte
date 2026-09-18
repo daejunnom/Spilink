@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { incomingPacketLimit } from '../attack-packets';
   import GarbageTiming from './GarbageTiming.svelte';
   import { SEASON_TWO_PC } from '../rule-defaults';
   import { translation } from '../i18n/store';
@@ -10,6 +11,7 @@
   import { DEFAULT_CONFIG, type Bindings, type Config } from '../config';
   export let config: Config;
   export let disabled = false;
+  $: packetCap = Number.isFinite(config.incomingApm) && Number.isFinite(config.maxAttack) && (config.attackPacketCap === null || Number.isFinite(config.attackPacketCap)) ? incomingPacketLimit(config) : '—';
   let capture: keyof Bindings | null = null;
   let keyError = '';
 
@@ -42,6 +44,8 @@
       <label>{t('setup.initialGarbage')}<input type="number" min="0" max="19" step="1" bind:value={config.initialGarbage} /></label>
       <label>{t('setup.seed')}<input data-testid="seed" readonly type="number" min="1" max="2147483646" step="1" bind:value={config.seed} /></label>
     </div>
+    <label>{t('pressure.packetCap')}<input data-testid="attack-packet-cap" type="number" min="1" max="1000" step="1" placeholder={t('pressure.automatic')} value={config.attackPacketCap ?? ''} on:input={e=>config={...config,attackPacketCap:e.currentTarget.value===''?null:e.currentTarget.valueAsNumber}} /></label>
+    <p class="muted" data-testid="attack-packet-hint">{t('pressure.packetHint',{cap:packetCap})}</p>
     <p class="muted">{t('pressure.pacingHint')}</p>
     <label class="toggle"><input type="checkbox" bind:checked={config.pressureAssist} /><span>{t('setup.assist')}<small>{t('setup.assistHint')}</small></span></label>
     <GarbageTiming bind:config />

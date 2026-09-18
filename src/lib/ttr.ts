@@ -1,3 +1,4 @@
+import { ATTACK_PACKETS, incomingPacketLimit } from './attack-packets.ts';
 import { ATTACK_PACING } from './attack-source.ts';
 import { SEASON_TWO_PC, REPLAY_PROFILE, REPLAY_VERSION, RULE_REVISION, expertPhase } from './rule-defaults.ts';
 import type { Session } from './session.ts';
@@ -46,6 +47,6 @@ export function makeReplay(session:Session){
           clears:{...session.clears},garbage:{sent:s.sent,sent_nomult:session.sentNomult,maxspike:session.maxSpike,maxspike_nomult:session.maxSpikeNomult,received:s.received,attack:s.attack,cleared:session.clearedGarbage},kills:0,
           zenith:{altitude:s.altitude,rank:session.environment.rank,peakrank:session.environment.peakRank,avgrankpts:session.environment.rankSum,floor:s.floor,targetingfactor:3,targetinggrace:s.targetingGrace,totalbonus:session.environment.totalBonus,revives:0,revivesTotal:0,revivesMaxOfBoth:0,speedrun:false,speedrun_seen:false,splits:[...session.environment.splits]},
           finaltime:Math.max(session.frame,session.ticks)/60*1000}}},
-    spilink:{attackSource:{version:ATTACK_PACING.version,rateUnit:'raw-damage-per-minute',windowFrames:ATTACK_PACING.framesPerMinute,budget:'rolling-actual-raw',virtualSenders:false},version:REPLAY_VERSION,profile:REPLAY_PROFILE,ruleRevision:RULE_REVISION,expectedEnd:source.expectedEnd,ticks:session.ticks,settings:structuredClone(c),changes:source.changes??[],attacks:source.attacks,first400:structuredClone(session.measure.checkpoint),usedUndo:session.usedUndo,status:session.status,summary:s,officialPlayback:false,
+    spilink:{attackSource:{version:ATTACK_PACING.version,rateUnit:'raw-damage-per-minute',windowFrames:ATTACK_PACING.framesPerMinute,budget:'rolling-actual-raw',packetPolicy:ATTACK_PACKETS.version,initialPacketCap:incomingPacketLimit(c),virtualSenders:false},version:REPLAY_VERSION,profile:REPLAY_PROFILE,ruleRevision:RULE_REVISION,expectedEnd:source.expectedEnd,ticks:session.ticks,settings:structuredClone(c),changes:source.changes??[],attacks:source.attacks,first400:structuredClone(session.measure.checkpoint),usedUndo:session.usedUndo,status:session.status,summary:s,officialPlayback:false,
       compatibility:{structure:'v1',rules:19,externalSimulation:'not-verified'},unsupportedStatistics:['finesse']}};
 }

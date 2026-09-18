@@ -1,10 +1,11 @@
 import type { Config } from './config.ts';
 import { Random } from './rules.ts';
 import { ATTACK_WINDOW_FRAMES, RollingAttackBudget } from './attack-budget.ts';
+import { incomingPacketLimit, splitAttackGroup, splitGapFrames } from './attack-packets.ts';
 
 /** Synthetic size/gap distribution. Receiver windup rules are a separate, native contract. */
 export const ATTACK_PACING = Object.freeze({
-  version: 'rolling-1', framesPerMinute: ATTACK_WINDOW_FRAMES,
+  version: 'rolling-split-1', framesPerMinute: ATTACK_WINDOW_FRAMES,
   minimumJitter: .7, maximumJitter: 1.3, assistHeight: 16,
   smallChance: .2, mediumChance: .65, smallMax: 2, mediumMax: 7, largeMin: 8,
   packetBudgetShare: .5, minimumGapFrames: 12, maximumClockGap: 300
@@ -19,6 +20,9 @@ export class AttackSource {
   random: Random;
   nextFrame: number;
   private budget = new RollingAttackBudget();
+  private splitRandom: Random;
+  private pendingParts: number[] = [];
+  private packetCap: number | null;
   private lastFrame = 0;
   private processedFrame = -1;
   private credit = 0;
@@ -29,6 +33,8 @@ export class AttackSource {
   constructor(c: Config) {
     this.random = new Random((c.seed + 97) % 2147483646 + 1);
     this.rate = c.incomingApm; this.cap = c.maxAttack;
+    this.packetCap = c.attackPacketCap;
+    this.splitRandom = new Random((c.seed + 193) % 2147483646 + 1);
     this.nextFrame = c.firstAttackFrames;
     this.plan(c.firstAttackFrames, c);
   }
@@ -52,13 +58,13 @@ export class AttackSource {
     this.processedFrame = frame;
     const previous = this.lastFrame, elapsed = frame - previous; this.lastFrame = frame;
     this.budget.advance(frame);
-    const changed = c.incomingApm !== this.rate || c.maxAttack !== this.cap;
+    const changed = c.incomingApm !== this.rate || c.maxAttack !== this.cap || c.attackPacketCap !== this.packetCap;
     const suppress = c.incomingApm > 0 && c.pressureAssist && pressure >= ATTACK_PACING.assistHeight;
     const suppressionChanged = suppress !== this.suppressed;
-    this.rate = c.incomingApm; this.cap = c.maxAttack; this.suppressed = suppress;
+    this.rate = c.incomingApm; this.cap = c.maxAttack; this.packetCap = c.attackPacketCap; this.suppressed = suppress;
     if (changed || suppressionChanged || elapsed > ATTACK_PACING.maximumClockGap) {
       // Keep actual last-minute spend through edits and relief; only unspent preparation is discarded.
-      this.credit = 0; this.plan(Math.max(frame, c.firstAttackFrames), c);
+      this.credit = 0; this.pendingParts = []; this.plan(Math.max(frame, c.firstAttackFrames), c);
       return suppressionChanged ? { amount: 0, assisted: suppress } : null;
     }
     if (!c.incomingApm || suppress || frame < c.firstAttackFrames) return null;
@@ -67,6 +73,7 @@ export class AttackSource {
     const creditCap = Math.min(c.maxAttack, Math.max(1, Math.ceil(c.incomingApm))) + 1;
     this.credit = Math.min(creditCap, this.credit + eligible * c.incomingApm / ATTACK_PACING.framesPerMinute);
     if (frame < this.nextFrame) return null;
+    if (this.pendingParts.length) return this.deliver(frame, c);
     const available = this.budget.available(c.incomingApm);
     const minimumGroup = Math.min(this.planned, 2);
     if (available < minimumGroup) {
@@ -76,20 +83,36 @@ export class AttackSource {
     }
     const amount = stochasticDamage(Math.max(0, Math.min(this.credit, this.planned, available)), () => this.random.next());
     if (amount) {
-      this.budget.spend(frame, amount, c.incomingApm);
-      // A rounded-up line is charged in full. Its fractional excess is never free or repeatedly reissued.
+      // Funding is allocated once for the whole group, but the rolling budget is charged only on delivery.
       this.credit -= amount;
+      this.pendingParts = splitAttackGroup(amount, incomingPacketLimit(c), () => this.splitRandom.next());
+      return this.deliver(frame, c);
     }
     this.plan(frame, c);
-    return amount ? { amount, assisted: false } : null;
+    return null;
+  }
+  private deliver(frame: number, c: Config): GeneratedAttack | null {
+    const amount = this.pendingParts[0];
+    if (amount > this.budget.available(c.incomingApm)) {
+      this.nextFrame = Math.max(frame + 1, this.budget.nextRelease() ?? frame + ATTACK_WINDOW_FRAMES);
+      return null;
+    }
+    this.budget.spend(frame, amount, c.incomingApm);
+    this.pendingParts.shift();
+    if (this.pendingParts.length) {
+      this.nextFrame = frame + splitGapFrames(amount, c.incomingApm, ATTACK_PACING.framesPerMinute, () => this.splitRandom.next());
+    } else this.plan(frame, c);
+    return { amount, assisted: false };
   }
   snapshot() {
     return { randomState: this.random.state, nextFrame: this.nextFrame, lastFrame: this.lastFrame,
       processedFrame: this.processedFrame, credit: this.credit, planned: this.planned,
-      rate: this.rate, cap: this.cap, suppressed: this.suppressed, recent: this.budget.snapshot() };
+      rate: this.rate, cap: this.cap, packetCap: this.packetCap, suppressed: this.suppressed, recent: this.budget.snapshot(),
+      splitRandomState: this.splitRandom.state, pendingParts: [...this.pendingParts] };
   }
   restore(value: ReturnType<AttackSource['snapshot']>): void {
-    const { randomState, recent, ...rest } = value;
+    const { randomState, splitRandomState, pendingParts, recent, ...rest } = value;
     Object.assign(this, rest); this.random.state = randomState; this.budget.restore(recent);
+    this.splitRandom.state = splitRandomState; this.pendingParts = [...pendingParts];
   }
 }

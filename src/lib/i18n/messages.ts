@@ -2,6 +2,10 @@ import { messages as commonMessages } from './common-messages.ts';
 export const messages = {
   ...commonMessages,
   "pressure.budgetHint": {"en": "Counts emitted raw attacks, including cancelled or not-yet-arrived attacks. Initial garbage and manual pending attacks are separate. With fractional APM, the rolling maximum is the next integer; the long-run target remains the selected APM.", "ko": "상쇄되었거나 아직 도착하지 않은 공격도 생성 시점에 집계합니다. 초기 방해줄·수동 초기 대기 공격은 별도입니다. 소수 APM의 최근 60초 최대량은 올림 정수이며, 장기 목표는 선택한 APM을 유지합니다.", "ja": "相殺済み・未到達の攻撃も生成時に数えます。初期ガベージ・手動の初期待機攻撃は別扱いです。小数APMの直近60秒上限は切り上げた整数ですが、長期目標は選択したAPMのままです。"},
+  "setup.maxAttack": {"en":"Attack group limit", "ko":"공격 묶음 상한", "ja":"攻撃グループの上限"},
+  "pressure.packetCap": {"en":"Per-send limit (blank = APM-based)", "ko":"한 번에 보낼 양 (빈칸 = APM 연동)", "ja":"1回の送信上限（空欄＝APM連動）"},
+  "pressure.automatic": {"en":"Automatic", "ko":"자동", "ja":"自動"},
+  "pressure.packetHint": {"en":"Current per-send limit: {cap} lines before receive adjustments. Larger groups are split and sent with gaps without discarding their total. Automatic limits keep 10 APM unchanged and reach 8 lines at 150 APM. This is separate from the garbage rise cap and manually specified initial attacks.", "ko":"현재 한 번에 보내는 상한: 수신 보정 전 {cap}줄. 큰 묶음은 총량을 버리지 않고 간격을 두어 나눠 보냅니다. 자동 상한은 10 APM을 유지하고 150 APM에서 8줄이 됩니다. 필드 상승의 가비지 캡 및 직접 지정한 초기 공격과는 별개입니다.", "ja":"現在の1回の上限：受信補正前で{cap}ライン。大きいグループは総量を捨てず、間隔を空けて分割送信します。自動上限は10 APMを維持し、150 APMで8ラインになります。せり上がりのガベージキャップや手動指定の初期攻撃とは別です。"},
   "pressure.remaining": {"en": "Remaining rolling budget", "ko": "남은 최근 60초 예산", "ja": "直近60秒の残り予算"},
   "pressure.recent": {"en": "Generated in the last 60 seconds", "ko": "최근 60초 생성량", "ja": "直近60秒の生成量"},
   "pressure.budgetTitle": {"en": "Incoming attack budget", "ko": "수신 공격 예산", "ja": "受信攻撃の予算"},

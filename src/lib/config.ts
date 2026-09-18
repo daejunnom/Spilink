@@ -5,7 +5,7 @@ export type Command = 'pause' | 'retry' | 'undo' | 'redo';
 export type Bindings = Record<GameKey | Command, string>;
 export type Config = {
   continueAfter400: boolean; seed: number; gravity: number; gravityIncrease: boolean;
-  gravityRate: number; incomingApm: number; maxAttack: number; floor: number;
+  gravityRate: number; incomingApm: number; maxAttack: number; attackPacketCap: number | null; floor: number;
   initialGarbage: number; firstAttackFrames: number; garbageCap: number;
   attackMultiplier: number; receiveMultiplier: number; cancelMultiplier: number;
   chargeAt: number; chargeBase: number; specialBonus: boolean; pressureAssist: boolean;
@@ -26,7 +26,7 @@ export type Config = {
 };
 export const DEFAULT_CONFIG: Config = {
   continueAfter400: false, seed: 1, gravity: 0.02, gravityIncrease: false,
-  gravityRate: 0.0001, incomingApm: 45, maxAttack: 24, floor: 1,
+  gravityRate: 0.0001, incomingApm: 45, maxAttack: 24, attackPacketCap: null, floor: 1,
   initialGarbage: 0, firstAttackFrames: 30, garbageCap: 8,
   attackMultiplier: 1, receiveMultiplier: 1, cancelMultiplier: 1,
   chargeAt: 4, chargeBase: 0, specialBonus: true, pressureAssist: false,
@@ -74,10 +74,10 @@ export function validateConfig(input: unknown): Config {
     if (v[key] !== undefined && !['off','hold','tap'].includes(v[key] as string)) throw new AppError('error.initialHandling');
     c[key] = (v[key] ?? c[key]) as Config[typeof key];
   }
-  const nullableRanges = { altitude: [0, 100000], senderAltitude: [0, 100000], garbagePhase: [0, 36000], messinessInner: [0, 10], messinessChange: [0, 10], garbageFavor: [-1000, 1000] };
+  const nullableRanges = { attackPacketCap: [1, 1000], altitude: [0, 100000], senderAltitude: [0, 100000], garbagePhase: [0, 36000], messinessInner: [0, 10], messinessChange: [0, 10], garbageFavor: [-1000, 1000] };
   for (const [key, [min, max]] of Object.entries(nullableRanges)) {
     const value = v[key] ?? null;
-    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (key === 'garbagePhase' && !Number.isInteger(value)))) throw new AppError('error.range', {key,min,max,step:key==='garbagePhase'?1:0});
+    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (['garbagePhase', 'attackPacketCap'].includes(key) && !Number.isInteger(value)))) throw new AppError('error.range', {key,min,max,step:['garbagePhase', 'attackPacketCap'].includes(key)?1:0});
     Object.assign(c, { [key]: value });
   }
   const enums = { bagType: ['7-bag','zenith'], roundMode: ['down','rng'], garbageEntry: ['instant','delayed','continuous'], spinBonuses: ['all-mini+','all+','all','all-mini','T-spins','T-spins+'] };
