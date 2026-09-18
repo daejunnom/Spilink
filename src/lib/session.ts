@@ -1,3 +1,6 @@
+import { projectSpawnWarning, type SpawnWarning } from './spawn-preview.ts';
+import { captureReplayEnd, sameReplayEnd, type ReplayEndState } from './replay-state.ts';
+import { pushFallingOneRow, garbageCeilingFull } from './survival.ts';
 import { AppError } from './errors.ts';
 import { Engine } from './vendor/integrated.js';
 import { validateConfig, type Config } from './config.ts';
@@ -10,9 +13,10 @@ import { makeReplay, newClears } from './ttr.ts';
 export type Status = 'ready' | 'running' | 'paused' | 'completed' | 'topout' | 'stopped';
 export type IncomingEvent = { frame: number; amount: number; source: number; assisted: boolean; altitude?: number };
 export type SettingEvent = { frame: number; tick: number; config: Config };
-export type ReplaySource = { keys: KeyFrame[]; attacks: IncomingEvent[]; endFrame: number; ticks: number; changes?: SettingEvent[] };
+export type ReplaySource = { keys: KeyFrame[]; attacks: IncomingEvent[]; endFrame: number; ticks: number; changes?: SettingEvent[]; expectedEnd?: ReplayEndState };
 export class Session {
   engine: EnginePort; config: Config; status: Status = 'ready';
+  replayMismatch = false;
   ticks = 0; initialConfig: Config; environment: Environment; supply: Supply;
   changes: SettingEvent[] = []; private changeCursor = 0;
   sentNomult = 0; maxSpike = 0; maxSpikeNomult = 0; spike = 0; spikeNomult = 0; spikeTimer = 0;
@@ -34,7 +38,7 @@ export class Session {
     this.engine = new Engine({
       queue: { type: '7-bag', minLength: 14, seed: c.seed },
       board: { width: 10, height: 20, buffer: 20 }, kickTable: 'SRS+',
-      options: { spinBonuses: c.spinBonuses, comboTable: 'multiplier', garbageTargetBonus: 'none', clutch: true, garbageBlocking: 'combo blocking', stock: 0 },
+      options: { spinBonuses: c.spinBonuses, comboTable: 'multiplier', garbageTargetBonus: 'none', clutch: c.clutch, garbageBlocking: 'combo blocking', stock: 0 },
       gravity: { value: c.gravity, increase: 0, marginTime: 0 },
       garbage: {
         cap: { ...constant(c.garbageCap), absolute: 0, max: 40 },
@@ -43,7 +47,7 @@ export class Session {
         bombs: false, seed: c.seed, boardWidth: 10, rounding: 'down', openerPhase: 0, specialBonus: c.specialBonus
       },
       handling: { arr: c.arr, das: c.das, dcd: c.dcd, sdf: c.sdf, safelock: c.safelock, cancel: c.cancel, may20g: c.may20g, irs: c.irs, ihs: c.ihs },
-      pc: { garbage: 10, b2b: 0 }, b2b: { chaining: false, charging: { at: c.chargeAt, base: c.chargeBase } },
+      pc: { garbage: c.allClearGarbage, b2b: c.allClearB2B }, b2b: { chaining: false, charging: { at: c.chargeAt, base: c.chargeBase } },
       misc: { movement: { infinite: false, lockResets: 15, lockTime: c.lockTime, may20G: true }, allowed: { spin180: true, hardDrop: true, hold: true, undo: false, retry: false }, infiniteHold: false, stride: false, date: new Date('2026-09-12T00:45:01Z') }
     });
     const random = new Random((c.seed + 271) % 2147483646 + 1);
@@ -58,11 +62,12 @@ export class Session {
       }));
     }
     this.initialMap=[...this.engine.board.state].reverse().map(row=>row.map(v=>v===null?'_':v.mino==='gb'?'#':v.mino==='gbd'?'@':v.mino).join('')).join('');
-    this.engine.spilinkHooks = { canTick: () => this.status === 'running', clear: e => this.finishClear(e), input: e => this.consumed(e), held: () => { this.holds++; }, score: n => { this.score += n; }, next: () => this.pullPiece() };
+    this.engine.spilinkHooks = { canTick: () => this.status === 'running', blockout: () => { this.status = 'topout'; }, clear: e => this.finishClear(e), input: e => this.consumed(e), held: () => { this.holds++; }, score: n => { this.score += n; }, next: () => this.pullPiece() };
     this.engine.initiatePiece(this.pullPiece()); this.engine.glock=c.startGrace;
     this.receiver.config=this.environment.effective(c);
     if(c.initialPending)this.receiver.receive(c.initialPending,0,0);
     this.history=[this.snapshot()];
+    if(this.playback && this.status==='topout')this.verifyReplayEnd();
   }
   get frame(): number { return this.engine.frame; }
   get height(): number {
@@ -76,7 +81,7 @@ export class Session {
     const piece=this.supply.pull(this.config,this.receiver.cancelStreak);
     this.engine.queue.splice(0,this.engine.queue.length,...this.supply.values);return piece;
   }
-  start(): void { if(this.status==='ready'||this.status==='paused')this.status=!this.sleeping&&this.engine.toppedOut?'topout':'running'; }
+  start(): void { if(this.status==='ready'||this.status==='paused'){this.status=!this.sleeping&&this.engine.toppedOut?'topout':'running';if(this.status==='topout')this.verifyReplayEnd();} }
   pause(): void { if(this.status==='running')this.status='paused'; }
   stop(): void { if(['ready','running','paused'].includes(this.status))this.status='stopped'; }
   applySettings(input:Config):void {
@@ -88,7 +93,7 @@ export class Session {
   }
   private syncConfig():void {
     const c=this.environment.effective(this.config);this.receiver.config=c;
-    this.engine.dynamic.gravity.set(c.gravity);this.engine.misc.movement.lockTime=c.lockTime;this.engine.gameOptions.spinBonuses=c.spinBonuses;
+    this.engine.dynamic.gravity.set(c.gravity);this.engine.misc.movement.lockTime=c.lockTime;this.engine.gameOptions.spinBonuses=c.spinBonuses;this.engine.gameOptions.clutch=c.clutch;
     Object.assign(this.engine.handling,{arr:c.arr,das:c.das,dcd:c.dcd,sdf:c.sdf,safelock:c.safelock,cancel:c.cancel,may20g:c.may20g,irs:c.irs,ihs:c.ihs});
   }
   private consumed(event:KeyFrame):void {
@@ -112,8 +117,8 @@ export class Session {
   tick(input: KeyFrame[] = []): void {
     if(this.status!=='running')return;
     this.applyReplayChanges();
-    if(this.playback&&this.ticks>=this.playback.ticks){this.stop();return;}
-    if((this.config.maxDuration&&this.frame>=this.config.maxDuration*60)||this.events.length>=500000||this.incoming.length>=100000){this.stop();return;}
+    if(this.playback&&this.ticks>=this.playback.ticks){this.stop();this.verifyReplayEnd();return;}
+    if((this.config.maxDuration&&this.frame>=this.config.maxDuration*60)||this.events.length>=500000||this.incoming.length>=100000){this.stop();this.verifyReplayEnd();return;}
     this.branch();const before=this.measure.pieces,frame=this.frame;
     this.syncConfig();let keys=input;const attacks:RawAttack[]=[];
     if(this.playback){
@@ -131,23 +136,24 @@ export class Session {
     if(this.status==='running'){
       if(this.spikeTimer>0&&--this.spikeTimer===0){this.spike=0;this.spikeNomult=0;}
       this.receiver.advance(this.frame);
-      const rise=this.receiver.applyScheduled(this.engine.board.state,this.frame,this.sleeping);
-      if(rise.overflow)this.status='topout';else if(rise.rows&&!this.sleeping)this.pushFalling();
+      const rise=this.receiver.applyScheduled(this.engine.board.state,this.frame,this.sleeping,()=>pushFallingOneRow(this.engine));
+      if(rise.overflow)this.status='topout';
       if(this.status==='running'&&this.spawnAt!==null&&this.frame>=this.spawnAt){this.spawnAt=null;this.engine.nextPiece();if(this.engine.toppedOut)this.status='topout';}
       const perma=this.environment.tick(this.frame,this.config);
       if(perma&&this.status==='running'){
-        const top=this.engine.board.state.pop();this.engine.board.state.unshift(Array.from({length:10},()=>({mino:'gbd'})));
-        if(top?.some(Boolean))this.status='topout';else if(!this.sleeping)this.pushFalling();
+        const full=garbageCeilingFull(this.engine.board.state);
+        if(full)this.status='topout';else{
+          this.engine.board.state.pop();this.engine.board.state.unshift(Array.from({length:10},()=>({mino:'gbd'})));
+          if(!this.sleeping&&!pushFallingOneRow(this.engine))this.status='topout';
+        }
       }
     }
     if(this.playback&&this.ticks>=this.playback.ticks){this.applyReplayChanges();if(this.status==='running')this.stop();}
+    if(this.playback&&this.status!=='running')this.verifyReplayEnd();
     if(!this.playback&&before!==this.measure.pieces){this.history.push(this.snapshot());this.historyIndex=this.history.length-1;if(this.history.length>64){this.history.shift();this.historyIndex--;}}
   }
-  private pushFalling():void {
-    while(this.engine.falling.absoluteBlocks.some(([x,y])=>this.engine.board.state[y]?.[x]!==null)){
-      if(this.engine.falling.absoluteBlocks.some(([,y])=>y>=39)){this.status='topout';return;}
-      this.engine.falling.location[1]++;this.engine.falling.highestY++;
-    }
+  private verifyReplayEnd():void {
+    if(this.playback?.expectedEnd)this.replayMismatch=!sameReplayEnd(captureReplayEnd(this),this.playback.expectedEnd);
   }
   private finishClear(e: ClearEvent): unknown {
     const frame = this.frame + this.engine.subframe;
@@ -182,7 +188,7 @@ export class Session {
     this.engine.resCache.lastLock = frame;
     this.engine.resCache.pieces++;
     this.engine.resCache.garbage.sent.push(sent);
-    if (rise.overflow) this.status = 'topout';
+    if (rise.overflow || (e.lockout && !this.config.noLockout && (!e.lines || !this.config.clutch))) this.status = 'topout';
     else if (completed) this.status = 'completed';
     else {
       const wait=Math.max(e.lines?this.config.lineClearAre:this.config.are,this.config.garbageEntry==='delayed'?rise.rows*this.config.garbageAre:0);
@@ -197,6 +203,10 @@ export class Session {
     let drop = 0;
     while (drop < 40 && blocks.every(([x, y]) => y - drop - 1 >= 0 && this.engine.board.state[y - drop - 1]?.[x] === null)) drop++;
     return blocks.map(([x, y]) => [x, y - drop]);
+  }
+  spawnWarning(): SpawnWarning | null {
+    if (this.sleeping || ['completed','topout','stopped'].includes(this.status)) return null;
+    return projectSpawnWarning(this.engine, this.ghost(), this.config.clutch);
   }
   summary() {
     const seconds = this.frame / 60;
@@ -236,6 +246,6 @@ export class Session {
   undo():boolean{if(!this.canUndo)return false;this.restore(this.history[--this.historyIndex]);return true;}
   redo():boolean{if(!this.canRedo)return false;this.restore(this.history[++this.historyIndex]);return true;}
   exportReplay(){return makeReplay(this);}
-  replaySource():ReplaySource{return {keys:structuredClone(this.events.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].eventLength:undefined)),attacks:structuredClone(this.incoming.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].incomingLength:undefined)),changes:structuredClone(this.changes.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].changeLength:undefined)),endFrame:this.frame,ticks:this.ticks};}
+  replaySource():ReplaySource{return {keys:structuredClone(this.events.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].eventLength:undefined)),attacks:structuredClone(this.incoming.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].incomingLength:undefined)),changes:structuredClone(this.changes.slice(0,this.historyIndex<this.history.length-1?this.history[this.historyIndex].changeLength:undefined)),endFrame:this.frame,ticks:this.ticks,expectedEnd:captureReplayEnd(this)};}
 }
 export type SessionSnapshot = ReturnType<Session['snapshot']>;

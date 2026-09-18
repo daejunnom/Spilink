@@ -4,7 +4,7 @@ import { Session } from '../src/lib/session.ts';
 import { DEFAULT_CONFIG } from '../src/lib/config.ts';
 
 test('400th real placement includes surge, regular and all-clear before stopping', () => {
-  const s = new Session({ ...DEFAULT_CONFIG, gravity: 0, incomingApm: 0, safelock: false });
+  const s = new Session({ ...DEFAULT_CONFIG, gravity: 0, incomingApm: 0, safelock: false, allClearB2B: 0 });
   assert.equal(s.engine.falling.symbol, 'o');
   s.measure.pieces = 399; s.measure.attack = 4; s.measure.first400Attack = 4;
   s.rules.combo = 8; s.rules.btb = 10;

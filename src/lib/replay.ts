@@ -1,3 +1,5 @@
+import { validReplayEnd } from './replay-state.ts';
+import { REPLAY_VERSION, REPLAY_PROFILE, RULE_REVISION } from './rule-defaults.ts';
 import { AppError } from './errors.ts';
 import type { Session, ReplaySource } from './session.ts';
 import { validateConfig, type Config } from './config.ts';
@@ -29,8 +31,9 @@ export function inspectJson(bytes:Uint8Array,name='replay.ttr'):ReplayFile{
       if(event.type==='keydown'||event.type==='keyup'){if(!integer(Math.round(event.data.subframe*10),9)||!Number.isFinite(event.data.subframe)||event.data.subframe<0||event.data.subframe>=1||typeof event.data.key!=='string')throw new AppError('error.inputTime');}}
   }
   const result:ReplayFile={kind:streams.length===1&&!value.replay.rounds?'ttr':'ttrm',bytes:new Uint8Array(bytes),name,streams:streams.length,events,username:String(value.users?.[0]?.username??'—').slice(0,32)};
-  if(result.kind==='ttr'&&record(value.spilink)&&value.spilink.version===2&&value.spilink.profile==='practice-2'){
+  if(result.kind==='ttr'&&record(value.spilink)&&value.spilink.version===REPLAY_VERSION&&value.spilink.profile===REPLAY_PROFILE&&value.spilink.ruleRevision===RULE_REVISION){
     const m=value.spilink,config=validateConfig(m.settings);
+    if(!validReplayEnd(m.expectedEnd))throw new AppError('error.metadata');
     if(!integer(streams[0].frames,5184000)||!integer(m.ticks,5184000)||!Array.isArray(m.attacks)||m.attacks.length>100000||!Array.isArray(m.changes)||m.changes.length>10000)throw new AppError('error.metadata');
     const input=streams[0].events.filter((e:Record<string,any>)=>e.type==='keydown'||e.type==='keyup') as KeyFrame[];
     if(input.some(e=>!keys.has(e.data.key)||e.frame>streams[0].frames))throw new AppError('error.input');
@@ -38,7 +41,7 @@ export function inspectJson(bytes:Uint8Array,name='replay.ttr'):ReplayFile{
     for(const e of m.attacks){if(!record(e)||!integer(e.frame,5184000)||e.frame<frame||e.frame>streams[0].frames||!integer(e.amount,10000)||!integer(e.source,100000)||typeof e.assisted!=='boolean'||(e.altitude!==undefined&&(!Number.isFinite(e.altitude)||e.altitude<0||e.altitude>100000)))throw new AppError('error.attacks');frame=e.frame;}
     let tick=-1;
     for(const e of m.changes){if(!record(e)||!integer(e.tick,m.ticks)||!integer(e.frame,5184000)||e.tick<tick)throw new AppError('error.changes');e.config=validateConfig(e.config);tick=e.tick;}
-    result.session={config,source:{keys:input,attacks:m.attacks,changes:m.changes,ticks:m.ticks,endFrame:streams[0].frames}};
+    result.session={config,source:{keys:input,attacks:m.attacks,changes:m.changes,ticks:m.ticks,endFrame:streams[0].frames,expectedEnd:m.expectedEnd}};
   }
   return result;
 }

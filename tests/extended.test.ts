@@ -79,8 +79,8 @@ test('delayed rises wait for their deadlines and survive snapshot restoration',(
 test('timer references still address the restored pending packets',()=>{
   const r=new Receiver(cfg({garbageSpeed:2,garbagePhase:3}));r.receive(3,0);const snap=r.snapshot();r.advance(2);r.restore(snap);r.advance(2);assert.equal(r.pending[0].active,true);
 });
-test('garbage smashes top buffer rather than deleting overflowing cells for survival',()=>{
-  const r=new Receiver(cfg({garbageSpeed:0,garbagePhase:0,targetingGrace:false})),b=board();b[39][0]={mino:'t'};r.receive(1,0);assert.equal(r.take(b,0).overflow,true);
+test('garbage smashes a completely filled top buffer without dropping it',()=>{
+  const r=new Receiver(cfg({garbageSpeed:0,garbagePhase:0,targetingGrace:false})),b=board();b[39]=Array.from({length:10},()=>({mino:'t'}));r.receive(1,0);assert.equal(r.take(b,0).overflow,true);
 });
 test('S/Z and L/J spin-column history are separate',()=>{
   const r=new Receiver(cfg());r.cancelStreak=20;r.beforeClear(clear({mino:'s',spin:'mini',lines:1}),1,0);r.beforeClear(clear({mino:'l',spin:'mini',lines:1}),2,1);r.beforeClear(clear({mino:'z',spin:'mini',lines:1}),3,2);

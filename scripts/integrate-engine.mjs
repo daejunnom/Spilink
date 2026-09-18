@@ -31,9 +31,17 @@ replace('testBlocks[j] = [movedBaseX + block[0], floorNewY - block[1]];', 'testB
 replace('Math.floor(options.boardWidth / 2 - tetromino.matrix.w / 2)', 'Math.ceil(options.boardWidth / 2) - 1 - tetromino.matrix.dx');
 replace('options.boardHeight + 2.04', 'options.boardHeight + 1.04 + tetromino.matrix.dy');
 replace('this.highestY = options.boardHeight + 2;', 'this.highestY = options.boardHeight + 1 + tetromino.matrix.dy;');
+// Publish failed spawn/hold attempts to the session before a later input can escape them.
+replace('    if (!ignoreBlockout && this.#considerBlockout(isHold)) {', '    if (!ignoreBlockout && this.#considerBlockout(isHold)) {\n      this.spilinkHooks?.blockout?.();');
+replace('        if (this.#considerBlockout(!ignoreBlockout || isHold)) {', '        if (this.#considerBlockout(!ignoreBlockout || isHold)) {\n          this.spilinkHooks?.blockout?.();');
+replace('legal(this.falling.absoluteBlocks, this.board.state)', 'legal(this.falling.blocks.map(([x, y]) => [this.falling.location[0] + x, this.falling.location[1] - y]), this.board.state)', 3);
+// Hold remains locked during ARE; spawning the next piece unlocks it.
+replace('  #lock(hard) {\n    this.holdLocked = false;', '  #lock(hard) {');
+replace('      hard,\n      mino: this.falling.symbol,', '      hard,\n      lockout: placedPos.every(([, y]) => y >= this.board.height),\n      mino: this.falling.symbol,');
 output += '\nexport { legal as rotationPositionIsLegal, performKick as attemptRotation, kicks as rotationTables, tetrominoes as pieceDefinitions };\n';
 writeFileSync(new URL('../src/lib/vendor/integrated.js', import.meta.url), output);
 writeFileSync(new URL('../src/lib/vendor/integrated.d.ts', import.meta.url), `export const Engine: new (options: unknown) => import('../port.ts').EnginePort;
+export const Tetromino: new (options: { boardHeight: number; boardWidth: number; initialRotation: number; symbol: import('../port.ts').Mino }) => import('../port.ts').EnginePort['falling'];
 export const rotationPositionIsLegal: (blocks: number[][], board: unknown[][]) => boolean;
 export const rotationTables: Record<string, Record<string, Record<string, number[][]>>>;
 export const pieceDefinitions: Record<string, {matrix: {dx: number; dy: number; data: number[][][]}}>;

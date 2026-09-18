@@ -44,7 +44,7 @@ for(const floor of [1,5,10])test(`floor ${floor} drives garbage warnings and rem
   r.advance(20+2*phase);assert.equal(garbageSegments(r,20+2*phase)[0].urgency,'ready');
 });
 test('queued attacks do not promise an arrival time before predecessor resolution',()=>{
-  const r=new Receiver(cfg({targetingGrace:false,cancelCorrection:false}));r.receive(3,0,1);r.receive(2,1,2);r.advance(21);
+  const r=new Receiver(cfg({targetingGrace:false,cancelCorrection:false,garbageQueue:true}));r.receive(3,0,1);r.receive(2,1,2);r.advance(21);
   const p=garbageSegments(r,21)[1];assert.equal(p.urgency,'waiting');assert.equal(p.remainingFrames,null);
 });
 test('warning presentation does not mutate receiver timers or RNG',()=>{

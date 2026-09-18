@@ -1,3 +1,4 @@
+import { PRACTICE_TIMING_DEFAULTS, SEASON_TWO_PC } from './rule-defaults.ts';
 import { AppError } from './errors.ts';
 import type { GameKey } from './port.ts';
 export type Command = 'pause' | 'retry' | 'undo' | 'redo';
@@ -10,7 +11,7 @@ export type Config = {
   chargeAt: number; chargeBase: number; specialBonus: boolean; pressureAssist: boolean;
   arr: number; das: number; dcd: number; sdf: number; safelock: boolean;
   cancel: boolean; may20g: boolean; irs: 'off' | 'hold' | 'tap'; ihs: 'off' | 'hold' | 'tap';
-  lockTime: number; ttrx: boolean; bindings: Bindings;
+  lockTime: number; ttrx: boolean; bindings: Bindings; clutch: boolean; noLockout: boolean;
   playerName: string; bagType: '7-bag' | 'zenith'; spinBonuses: 'all-mini+' | 'all+' | 'all' | 'all-mini' | 'T-spins' | 'T-spins+';
   altitude: number | null; senderAltitude: number | null; progression: boolean;
   cancelCorrection: boolean; targetingGrace: boolean; timeCancelFatigue: boolean; fatigue: boolean;
@@ -33,10 +34,10 @@ export const DEFAULT_CONFIG: Config = {
   irs: 'tap', ihs: 'tap', lockTime: 30, ttrx: false,
   playerName: 'SPILINK', bagType: '7-bag', spinBonuses: 'all-mini+', altitude: null, senderAltitude: null, progression: false,
   cancelCorrection: true, targetingGrace: true, timeCancelFatigue: false, fatigue: false,
-  garbageSpeed: 20, garbagePhase: null, garbageQueue: true, absoluteCap: 0,
-  garbageEntry: 'instant', are: 0, lineClearAre: 0, garbageAre: 4, garbageAreBump: 4,
+  ...PRACTICE_TIMING_DEFAULTS, absoluteCap: 0,
+  garbageEntry: 'instant', are: 0, lineClearAre: 0, clutch: true, noLockout: true,
   messinessInner: null, messinessChange: null, garbageFavor: null, noSameHole: false,
-  roundMode: 'down', attackCap: 0, allClearGarbage: 10, allClearB2B: 0,
+  roundMode: 'down', attackCap: 0, allClearGarbage: 10, allClearB2B: SEASON_TWO_PC.allClearB2B,
   initialQueue: '', initialBoard: '', initialPending: 0, startGrace: 0, maxDuration: 3600,
   attackIncrease: false, attackRate: 0.01, receiveIncrease: false, receiveRate: 0.01,
   lockDecrease: false, lockRate: 0.01, lockMinimum: 6,
@@ -65,7 +66,7 @@ export function validateConfig(input: unknown): Config {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (step && Math.abs(value / step - Math.round(value / step)) > 1e-7)) throw new AppError('error.range', {key,min,max,step});
     Object.assign(c, { [key]: value });
   }
-  for (const key of ['continueAfter400','gravityIncrease','specialBonus','pressureAssist','safelock','cancel','may20g','ttrx','progression','cancelCorrection','targetingGrace','timeCancelFatigue','fatigue','garbageQueue','noSameHole','attackIncrease','receiveIncrease','lockDecrease'] as const) {
+  for (const key of ['clutch','noLockout','continueAfter400','gravityIncrease','specialBonus','pressureAssist','safelock','cancel','may20g','ttrx','progression','cancelCorrection','targetingGrace','timeCancelFatigue','fatigue','garbageQueue','noSameHole','attackIncrease','receiveIncrease','lockDecrease'] as const) {
     if (v[key] !== undefined && typeof v[key] !== 'boolean') throw new AppError('error.toggle', {key});
     c[key] = (v[key] ?? c[key]) as boolean;
   }

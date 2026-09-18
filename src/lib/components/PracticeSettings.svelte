@@ -1,4 +1,6 @@
 <script lang="ts">
+  import GarbageTiming from './GarbageTiming.svelte';
+  import { SEASON_TWO_PC } from '../rule-defaults';
   import { translation } from '../i18n/store';
   import { createTranslator } from '../i18n/index';
   import { KEY_ACTIONS, TOGGLE_FIELDS, NUMERIC_FIELDS } from '../settings-schema';
@@ -41,6 +43,7 @@
       <label>{t('setup.seed')}<input data-testid="seed" readonly type="number" min="1" max="2147483646" step="1" bind:value={config.seed} /></label>
     </div>
     <label class="toggle"><input type="checkbox" bind:checked={config.pressureAssist} /><span>{t('setup.assist')}<small>{t('setup.assistHint')}</small></span></label>
+    <GarbageTiming bind:config />
     <details>
       <summary>{t('setup.handling')}</summary>
       <div class="fields">
@@ -78,6 +81,10 @@
       <label class="toggle"><input type="checkbox" bind:checked={config.specialBonus} /><span>{t('setup.specialBonus')}</span></label>
     </details>
     <details><summary>{t('setup.progressionGroup')}</summary>
+      <label class="toggle"><input type="checkbox" bind:checked={config.clutch}/><span>{t('setup.clutch')}</span></label>
+      <label class="toggle"><input type="checkbox" bind:checked={config.noLockout}/><span>{t('setup.noLockout')}</span></label>
+      <p>{t('setup.noLockoutHint')}</p>
+      <button type="button" data-testid="pc-rule" on:click={()=>config={...config,allClearB2B:SEASON_TWO_PC.allClearB2B}}>{t('setup.pcRule')}</button>
       <label>{t('setup.playerName')}<input data-testid="player-name" maxlength="32" bind:value={config.playerName} /></label>
       <div class="fields">
         <label>{t('setup.bagType')}<select bind:value={config.bagType}><option value="7-bag">7-bag</option><option value="zenith">{t('option.zenith')}</option></select></label>

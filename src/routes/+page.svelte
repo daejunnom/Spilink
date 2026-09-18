@@ -16,6 +16,7 @@
   import { Session, type Status } from '$lib/session';
   import { Keyboard } from '$lib/input';
   import { drawBoard, previewCells } from '$lib/renderer';
+  import { BOARD_VIEW, BOARD_ASPECT, SPAWN_BAND_PERCENT } from '$lib/board-view';
   import { downloadReplay, readReplay, convertImported, type SavedReplay, type ReplayFile } from '$lib/replay';
   import { newSeed } from '$lib/seed';
   import { garbageSegments, type GarbageSegment } from '$lib/garbage-view';
@@ -32,6 +33,7 @@
   let error='',notice='',isReplay=false,modal:''|'settings'|'replay'|'stats'|'about'='';
   let pending=0,reserved=0,lastAction='READY',lastAttack=0,assist=false,canUndo=false,canRedo=false;
   let boardWidth=200,sideWidth=50,fullscreen=false;
+  let holdLocked=false,replayMismatch=false;
   let holdCells:ReturnType<typeof previewCells>=[],nextCells:ReturnType<typeof previewCells>[]=[];
   let packets:GarbageSegment[]=[];
   let saved:SavedReplay|null=null,imported:ReplayFile|null=null;
@@ -42,8 +44,8 @@
   $: progress=Math.min(100,(stats?.pieces??0)/4);
   function refresh(){
     if(!session)return;status=session.status;stats=session.summary();pending=session.receiver.size;reserved=session.receiver.reserved;
-    lastAction=session.lastAction;lastAttack=session.lastAttack;assist=session.assistActive;canUndo=session.canUndo;canRedo=session.canRedo;
-    holdCells=previewCells(session,session.engine.held);nextCells=Array.from(session.engine.queue).slice(0,5).map(p=>previewCells(session,p));
+    replayMismatch=session.replayMismatch;lastAction=session.lastAction;lastAttack=session.lastAttack;assist=session.assistActive;canUndo=session.canUndo;canRedo=session.canRedo;
+    holdLocked=session.engine.holdLocked;holdCells=previewCells(session,session.engine.held);nextCells=Array.from(session.engine.queue).slice(0,5).map(p=>previewCells(session,p));
     packets=garbageSegments(session.receiver,session.frame);
   }
   function packetTitle(packet:GarbageSegment){return t('garbage.'+packet.urgency as MessageKey)+': '+packet.amount+(packet.remainingFrames===null?' · '+t('garbage.queued'):' · '+(packet.remainingFrames/60).toFixed(2)+'s');}
@@ -83,7 +85,7 @@
   function history(action:'undo'|'redo'){if(!session||isReplay)return;pause();keyboard?.release();if(session[action]()){draft=structuredClone(session.config);connectKeyboard();origin=performance.now();notice=action==='undo'?t('notice.undo'):t('notice.redo');}refresh();}
   function watch(file:SavedReplay|null=saved){
     pause();if(!file){remember();file=saved;}if(!file)return;
-    try{session=new Session(file.spilink.settings,{keys:file.replay.events.filter(e=>e.type==='keydown'||e.type==='keyup') as ReturnType<Session['replaySource']>['keys'],attacks:file.spilink.attacks,changes:file.spilink.changes,endFrame:file.replay.frames,ticks:file.spilink.ticks});
+    try{session=new Session(file.spilink.settings,{keys:file.replay.events.filter(e=>e.type==='keydown'||e.type==='keyup') as ReturnType<Session['replaySource']>['keys'],attacks:file.spilink.attacks,changes:file.spilink.changes,endFrame:file.replay.frames,ticks:file.spilink.ticks,expectedEnd:file.spilink.expectedEnd});
       isReplay=true;origin=performance.now();connectKeyboard();session.start();error='';refresh();closePanel();surface?.focus({preventScroll:true});
     }catch(e){message(e);}
   }
@@ -100,7 +102,7 @@
   async function openPanel(name:typeof modal){touchEditing=false;pause();keyboard?.release();if(name==='replay')remember();modal=name;await tick();dialog?.showModal();}
   function closePanel(){dialog?.close();modal='';surface?.focus({preventScroll:true});}
   async function toggleFullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notice=t('notice.fullscreen');}}
-  function fit(){if(!stage)return;const {width,height}=stage.getBoundingClientRect();sideWidth=Math.max(24,Math.min(88,width*.12,(height-81)/2.7));boardWidth=Math.max(50,Math.floor(Math.min((height-26)/2,width-2*sideWidth-48-(showTouch&&orientation==='landscape'?4*touchPreferences.size+32:0),580)));}
+  function fit(){if(!stage)return;const {width,height}=stage.getBoundingClientRect();sideWidth=Math.max(24,Math.min(88,width*.12,(height-81)/2.7));boardWidth=Math.max(50,Math.floor(Math.min((height-26)/BOARD_ASPECT,width-2*sideWidth-48-(showTouch&&orientation==='landscape'?4*touchPreferences.size+32:0),580)));}
   function time(n:number){return `${Math.floor(n/60).toString().padStart(2,'0')}:${(n%60).toFixed(1).padStart(4,'0')}`;}
   onMount(()=>{
     const cleanupLocale=initLocale();mounted=true;
@@ -126,10 +128,10 @@
   });
 </script>
 <svelte:head><title>Spilink</title><meta name="description" content={t('page.description')} /></svelte:head>
-<main class="app" class:touch-enabled={showTouch} class:touch-editing={touchEditing} class:touch-landscape={showTouch&&orientation==='landscape'} style={`--board-width:${boardWidth}px;--side-width:${sideWidth}px;--touch-height:${2*touchPreferences.size+20}px`}>
+<main class="app" class:touch-enabled={showTouch} class:touch-editing={touchEditing} class:touch-landscape={showTouch&&orientation==='landscape'} style={`--board-width:${boardWidth}px;--board-aspect:${BOARD_ASPECT};--spawn-band:${SPAWN_BAND_PERCENT}%;--side-width:${sideWidth}px;--touch-height:${2*touchPreferences.size+20}px`}>
   <div class="utility-row">
     {#if touchEditing}<button data-testid="touch-done" class="primary" on:click={finishTouch}>{tt('done')}</button>{/if}
-    <span class="session-status" data-testid="status"><i class:live={status==='running'}></i>{isReplay?t('replay.prefix'):''}{statusNames[status]}</span>
+    <span class="session-status" data-testid="status"><i class:live={status==='running'}></i>{isReplay?t('replay.prefix'):''}{replayMismatch?t('replay.mismatch'):statusNames[status]}</span>
     <nav class="top-tools" aria-label={t('nav.tools')}>
       <button data-testid="settings-button" on:click={()=>openPanel('settings')}>{t('nav.settings')}</button>
       <button data-testid="replay-button" on:click={()=>openPanel('replay')}>{t('nav.replay')}</button>
@@ -140,7 +142,7 @@
   </div>
   <section class="play-stage" bind:this={stage} aria-label={t('aria.player')}>
     <div class="board-layout">
-      <aside class="hold-side"><h2>HOLD</h2><div class="mino-box"><PiecePreview cells={holdCells} label={t('aria.hold')} /></div><div class="mini-counter"><span>COMBO</span><strong>{stats?.combo??0}</strong></div><div class="mini-counter"><span>B2B</span><strong>{stats?.btb??0}</strong></div><div class="mini-counter first400"><span>400 ATTACK</span><strong>{stats?.first400Attack??0}</strong></div></aside>
+      <aside class="hold-side"><h2>HOLD</h2><div class="mino-box" class:hold-locked={holdLocked} data-testid="hold-preview" data-locked={holdLocked} title={t(holdLocked?'hold.locked':'hold.available')}><PiecePreview cells={holdCells} label={t(holdLocked?'hold.locked':'hold.available')} /></div><div class="mini-counter"><span>COMBO</span><strong>{stats?.combo??0}</strong></div><div class="mini-counter"><span>B2B</span><strong>{stats?.btb??0}</strong></div><div class="mini-counter first400"><span>400 ATTACK</span><strong>{stats?.first400Attack??0}</strong></div></aside>
       <div class="board-shell">
         <div class="incoming-meter" data-testid="garbage-meter" role="meter" aria-label={t('aria.garbage')} aria-valuemin="0" aria-valuemax={Math.max(meterMax,pending)} aria-valuenow={pending}>
           <div class="meter-stack">{#each packets as packet}<div class={`meter-segment ${packet.urgency}`} data-urgency={packet.urgency} style={`height:${packet.amount/meterMax*100}%`} title={packetTitle(packet)}></div>{/each}</div>
@@ -148,9 +150,9 @@
           {#if pending>meterMax}<span class="meter-overflow">+{pending-meterMax}</span>{/if}
         </div>
         <div bind:this={surface} role="button" aria-label={t('aria.board')} tabindex="0" class="board-surface" data-testid="game-surface" on:click={()=>surface.focus({preventScroll:true})} on:keydown={()=>{}}>
-          <canvas bind:this={canvas} aria-hidden="true"></canvas>
+          <canvas bind:this={canvas} data-testid="board-canvas" data-visible-rows={BOARD_VIEW.rows} aria-hidden="true"></canvas>
           {#if status!=='running'}
-            <div class="board-overlay"><strong>{statusNames[status]}</strong>
+            <div class="board-overlay"><strong>{replayMismatch?t('replay.mismatch'):statusNames[status]}</strong>
               {#if status==='completed'}<span>{t('stats.firstResult',{attack:stats?.first400Attack??0})}</span>{/if}
               {#if status==='paused'}<button class="primary" on:click|stopPropagation={togglePause}>{t('play.resume')}</button>{:else}<button data-testid="start" class="primary" disabled={!mounted} on:click|stopPropagation={()=>start()}>{status==='ready'?t('play.start'):t('play.again')}</button>{/if}
             </div>

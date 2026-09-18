@@ -1,6 +1,8 @@
 import type { Config } from './config.ts';
 import type { ClearEvent, Tile } from './port.ts';
 import { Random, splitLargeAttack } from './rules.ts';
+import { expertPhase } from './rule-defaults.ts';
+import { garbageCeilingFull } from './survival.ts';
 import { FLOOR_ALTITUDES } from './environment.ts';
 export { FLOOR_ALTITUDES } from './environment.ts';
 export type Packet = { id: number; source: number; amount: number; status: 'sleeping' | 'caution' | 'danger' | 'spawn'; first: boolean; delay: number; active: boolean; hardened: boolean; shielded?: boolean; queued?: boolean; column?: number; size?: number };
@@ -18,7 +20,7 @@ export class Receiver {
   constructor(config: Config) { this.config = config; this.random = new Random(config.seed); }
   get size(): number { return this.pending.reduce((n,p) => n+p.amount,0) + this.continuous.length; }
   get reserved(): number { return this.timers.filter(t => t.kind === 'enter').reduce((n,t) => n+t.packet.amount,0) + this.delayed.length; }
-  get phase(): number { return this.config.garbagePhase ?? 66-6*this.config.floor; }
+  get phase(): number { return this.config.garbagePhase ?? expertPhase(this.config.floor); }
   get inner(): number { return this.config.messinessInner ?? .05*this.config.floor+.25; }
   get change(): number { return this.config.messinessChange ?? 2.5*(.05*this.config.floor+.25); }
   round(n: number): number {
@@ -170,11 +172,12 @@ export class Receiver {
     return this.lastColumn=(ranked.find(r=>r.weight!==0&&n<=r.weight)??ranked[0]).x;
   }
   private push(board: Tile[][], row: Rise, frame: number): boolean {
-    const overflow=board[board.length-1].some(Boolean); board.pop();
+    if (garbageCeilingFull(board)) return true;
+    board.pop();
     const cells=Array.from({length:10},(_,x)=>x>=row.column&&x<row.column+row.size?null:{mino:'gb'});
     let perma=0;while(perma<board.length&&board[perma].every(v=>v?.mino==='gbd'))perma++;
     board.splice(perma,0,cells);this.risen++;this.cancelStreak=Math.max(0,this.cancelStreak-3);this.lastTank=this.staleFrame=frame;this.stalePieces=0;
-    return overflow;
+    return false;
   }
   take(board: Tile[][], frame: number): {rows:number;overflow:boolean} {
     const deferred=this.pending.filter(p=>!(p.active&&p.status==='spawn'));
@@ -195,10 +198,10 @@ export class Receiver {
     if(rows&&this.config.garbageEntry==='continuous')this.riseLockedUntil=Math.max(this.riseLockedUntil,frame+this.config.garbageAre);
     return {rows,overflow};
   }
-  applyScheduled(board: Tile[][], frame: number, sleeping: boolean): {rows:number;overflow:boolean} {
+  applyScheduled(board: Tile[][], frame: number, sleeping: boolean, onRow?: () => boolean): {rows:number;overflow:boolean} {
     let rows=0,overflow=false;
-    for(let i=this.delayed.length-1;i>=0;i--){const row=this.delayed[i];if(row.at>frame)continue;this.delayed.splice(i,1);overflow=this.push(board,row,frame)||overflow;rows++;if(overflow)break;}
-    if(!overflow&&!sleeping&&this.continuous.length&&frame>=this.riseLockedUntil){overflow=this.push(board,this.continuous.shift()!,frame);rows++;this.riseLockedUntil=frame+this.config.garbageAre;}
+    for(let i=this.delayed.length-1;i>=0;i--){const row=this.delayed[i];if(row.at>frame)continue;this.delayed.splice(i,1);overflow=this.push(board,row,frame)||overflow;rows++;if(!overflow&&!sleeping&&onRow&&!onRow())overflow=true;if(overflow)break;}
+    if(!overflow&&!sleeping&&this.continuous.length&&frame>=this.riseLockedUntil){overflow=this.push(board,this.continuous.shift()!,frame);rows++;if(!overflow&&onRow&&!onRow())overflow=true;this.riseLockedUntil=frame+this.config.garbageAre;}
     return {rows,overflow};
   }
   snapshot(){ return structuredClone({pending:this.pending,timers:this.timers,continuous:this.continuous,delayed:this.delayed,

@@ -34,7 +34,7 @@ test('basic attacks and combo lower bound', () => {
 });
 test('surge precedes ordinary and all-clear attacks; no combo multiplier on surge', () => {
   const rules = new AttackRules(); rules.btb = 10; rules.combo = 8;
-  const attacks = rules.resolve(clear(2, 'none', true), c);
+  const attacks = rules.resolve(clear(2, 'none', true), { ...c, allClearB2B: 0 });
   assert.deepEqual(attacks.slice(0, 3), [{ kind: 'surge', amount: 2 }, { kind: 'surge', amount: 2 }, { kind: 'surge', amount: 2 }]);
   assert.equal(attacks[3].kind, 'clear'); assert.equal(attacks[4].kind, 'allclear');
   assert.equal(rules.btb, 0);
